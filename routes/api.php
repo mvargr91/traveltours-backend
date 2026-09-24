@@ -51,6 +51,14 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::get('current/session',  [UserController::class,'getSession'])->name('session.show');
     });
 
+    // Mi cuenta: datos del usuario autenticado (cualquier rol, solo los propios)
+    Route::group(["prefix" => "cuenta"], function () {
+        Route::get('/', [Seguridad\CuentaController::class, 'show'])->name('cuenta.show');
+        Route::put('/', [Seguridad\CuentaController::class, 'update'])->name('cuenta.update');
+        Route::put('/clave', [Seguridad\CuentaController::class, 'cambiarClave'])->middleware('throttle:10,1,cuenta-clave')->name('cuenta.clave');
+        Route::put('/proveedor', [Seguridad\CuentaController::class, 'actualizarProveedor'])->name('cuenta.proveedor');
+    });
+
     // Usuarios
     Route::group(["prefix" => "usuarios"],function(){
         Route::get('/', [Seguridad\UsuarioController::class,'index'])->name('usuarios.index');
