@@ -4,6 +4,12 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Seguridad;
 use App\Http\Controllers\Parametrizacion;
 use App\Http\Controllers\Inversiones;
+use App\Http\Controllers\Turismo;
+use App\Http\Controllers\Experiencias;
+use App\Http\Controllers\Reservas;
+use App\Http\Controllers\Promociones;
+use App\Http\Controllers\Proveedores;
+use App\Http\Controllers\Resenas;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\ExtractoController;
 use App\Http\Controllers\PortafolioController;
@@ -506,5 +512,187 @@ Route::group(['middleware' => ['auth:api']], function (){
     Route::post('/extractos', [ExtractoController::class, 'enviarExtractos']);
     Route::get('/exportar-portafolio', [PortafolioController::class, 'generarPDF']);
 
-    
+    // ---------------------- Turismo -------------------------- //
+
+    // Destinos
+    Route::group(["prefix" => "destinos"], function () {
+        Route::get('/', [Turismo\DestinoController::class, 'index'])->name('destinos.index');
+        Route::post('/', [Turismo\DestinoController::class, 'store'])->name('destinos.store');
+        Route::get('/{id}', [Turismo\DestinoController::class, 'show'])->name('destinos.show');
+        Route::put('/{id}', [Turismo\DestinoController::class, 'update'])->name('destinos.update');
+        Route::delete('/{id}', [Turismo\DestinoController::class, 'destroy'])->name('destinos.delete');
+    });
+
+    // Categorias
+    Route::group(["prefix" => "categorias"], function () {
+        Route::get('/', [Turismo\CategoriaController::class, 'index'])->name('categorias.index');
+        Route::post('/', [Turismo\CategoriaController::class, 'store'])->name('categorias.store');
+        Route::get('/{id}', [Turismo\CategoriaController::class, 'show'])->name('categorias.show');
+        Route::put('/{id}', [Turismo\CategoriaController::class, 'update'])->name('categorias.update');
+        Route::delete('/{id}', [Turismo\CategoriaController::class, 'destroy'])->name('categorias.delete');
+    });
+
+    // Caracteristicas
+    Route::group(["prefix" => "caracteristicas"], function () {
+        Route::get('/', [Turismo\CaracteristicaController::class, 'index'])->name('caracteristicas.index');
+        Route::post('/', [Turismo\CaracteristicaController::class, 'store'])->name('caracteristicas.store');
+        Route::get('/{id}', [Turismo\CaracteristicaController::class, 'show'])->name('caracteristicas.show');
+        Route::put('/{id}', [Turismo\CaracteristicaController::class, 'update'])->name('caracteristicas.update');
+        Route::delete('/{id}', [Turismo\CaracteristicaController::class, 'destroy'])->name('caracteristicas.delete');
+    });
+
+    // Proveedores turisticos
+    Route::group(["prefix" => "proveedores-turisticos"], function () {
+        Route::get('/', [Proveedores\ProveedorTuristicoController::class, 'index'])->name('proveedores-turisticos.index');
+        Route::post('/', [Proveedores\ProveedorTuristicoController::class, 'store'])->name('proveedores-turisticos.store');
+        Route::get('/{id}', [Proveedores\ProveedorTuristicoController::class, 'show'])->name('proveedores-turisticos.show');
+        Route::put('/{id}', [Proveedores\ProveedorTuristicoController::class, 'update'])->name('proveedores-turisticos.update');
+        Route::put('/{id}/verificar', [Proveedores\ProveedorTuristicoController::class, 'verificar'])->name('proveedores-turisticos.verificar');
+        Route::delete('/{id}', [Proveedores\ProveedorTuristicoController::class, 'destroy'])->name('proveedores-turisticos.delete');
+    });
+
+    // Documentos proveedor
+    Route::group(["prefix" => "documentos-proveedor"], function () {
+        Route::get('/', [Proveedores\DocumentoProveedorController::class, 'index'])->name('documentos-proveedor.index');
+        Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store');
+        Route::get('/{id}', [Proveedores\DocumentoProveedorController::class, 'show'])->name('documentos-proveedor.show');
+        Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update');
+        Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete');
+    });
+
+    // Cupones
+    Route::group(["prefix" => "cupones"], function () {
+        Route::get('/', [Turismo\CuponController::class, 'index'])->name('cupones.index');
+        Route::post('/', [Turismo\CuponController::class, 'store'])->name('cupones.store');
+        Route::get('/{id}', [Turismo\CuponController::class, 'show'])->name('cupones.show');
+        Route::put('/{id}', [Turismo\CuponController::class, 'update'])->name('cupones.update');
+        Route::delete('/{id}', [Turismo\CuponController::class, 'destroy'])->name('cupones.delete');
+    });
+
+    // Experiencias
+    Route::group(["prefix" => "experiencias"], function () {
+        Route::get('/', [Experiencias\ExperienciaController::class, 'index'])->name('experiencias.index');
+        Route::post('/', [Experiencias\ExperienciaController::class, 'store'])->name('experiencias.store');
+        Route::get('/{id}', [Experiencias\ExperienciaController::class, 'show'])->name('experiencias.show');
+        Route::put('/{id}', [Experiencias\ExperienciaController::class, 'update'])->name('experiencias.update');
+        Route::put('/{id}/estado', [Experiencias\ExperienciaController::class, 'cambiarEstado'])->name('experiencias.cambiarEstado');
+        Route::delete('/{id}', [Experiencias\ExperienciaController::class, 'destroy'])->name('experiencias.delete');
+    });
+
+    // Experiencia categorias
+    Route::group(["prefix" => "experiencia-categorias"], function () {
+        Route::get('/', [Experiencias\ExperienciaCategoriaController::class, 'index'])->name('experiencia-categorias.index');
+        Route::post('/', [Experiencias\ExperienciaCategoriaController::class, 'store'])->name('experiencia-categorias.store');
+        Route::delete('/{id}', [Experiencias\ExperienciaCategoriaController::class, 'destroy'])->name('experiencia-categorias.delete');
+    });
+
+    // Experiencia precios
+    Route::group(["prefix" => "experiencia-precios"], function () {
+        Route::get('/', [Experiencias\ExperienciaPrecioController::class, 'index'])->name('experiencia-precios.index');
+        Route::post('/', [Experiencias\ExperienciaPrecioController::class, 'store'])->name('experiencia-precios.store');
+        Route::get('/{id}', [Experiencias\ExperienciaPrecioController::class, 'show'])->name('experiencia-precios.show');
+        Route::put('/{id}', [Experiencias\ExperienciaPrecioController::class, 'update'])->name('experiencia-precios.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaPrecioController::class, 'destroy'])->name('experiencia-precios.delete');
+    });
+
+    // Experiencia multimedia
+    Route::group(["prefix" => "experiencia-multimedia"], function () {
+        Route::get('/', [Experiencias\ExperienciaMultimediaController::class, 'index'])->name('experiencia-multimedia.index');
+        Route::post('/', [Experiencias\ExperienciaMultimediaController::class, 'store'])->name('experiencia-multimedia.store');
+        Route::get('/{id}', [Experiencias\ExperienciaMultimediaController::class, 'show'])->name('experiencia-multimedia.show');
+        Route::put('/{id}', [Experiencias\ExperienciaMultimediaController::class, 'update'])->name('experiencia-multimedia.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaMultimediaController::class, 'destroy'])->name('experiencia-multimedia.delete');
+    });
+
+    // Experiencia caracteristicas
+    Route::group(["prefix" => "experiencia-caracteristicas"], function () {
+        Route::get('/', [Experiencias\ExperienciaCaracteristicaController::class, 'index'])->name('experiencia-caracteristicas.index');
+        Route::post('/', [Experiencias\ExperienciaCaracteristicaController::class, 'store'])->name('experiencia-caracteristicas.store');
+        Route::put('/{id}', [Experiencias\ExperienciaCaracteristicaController::class, 'update'])->name('experiencia-caracteristicas.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaCaracteristicaController::class, 'destroy'])->name('experiencia-caracteristicas.delete');
+    });
+
+    // Experiencia horarios
+    Route::group(["prefix" => "experiencia-horarios"], function () {
+        Route::get('/', [Experiencias\ExperienciaHorarioController::class, 'index'])->name('experiencia-horarios.index');
+        Route::post('/', [Experiencias\ExperienciaHorarioController::class, 'store'])->name('experiencia-horarios.store');
+        Route::get('/{id}', [Experiencias\ExperienciaHorarioController::class, 'show'])->name('experiencia-horarios.show');
+        Route::put('/{id}', [Experiencias\ExperienciaHorarioController::class, 'update'])->name('experiencia-horarios.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaHorarioController::class, 'destroy'])->name('experiencia-horarios.delete');
+    });
+
+    // Experiencia disponibilidad
+    Route::group(["prefix" => "experiencia-disponibilidad"], function () {
+        Route::get('/', [Experiencias\ExperienciaDisponibilidadController::class, 'index'])->name('experiencia-disponibilidad.index');
+        Route::post('/', [Experiencias\ExperienciaDisponibilidadController::class, 'store'])->name('experiencia-disponibilidad.store');
+        Route::get('/{id}', [Experiencias\ExperienciaDisponibilidadController::class, 'show'])->name('experiencia-disponibilidad.show');
+        Route::put('/{id}', [Experiencias\ExperienciaDisponibilidadController::class, 'update'])->name('experiencia-disponibilidad.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaDisponibilidadController::class, 'destroy'])->name('experiencia-disponibilidad.delete');
+    });
+
+    // Reservas
+    Route::group(["prefix" => "reservas"], function () {
+        Route::get('/', [Reservas\ReservaController::class, 'index'])->name('reservas.index');
+        Route::post('/', [Reservas\ReservaController::class, 'store'])->name('reservas.store');
+        Route::get('/{id}', [Reservas\ReservaController::class, 'show'])->name('reservas.show');
+        Route::put('/{id}', [Reservas\ReservaController::class, 'update'])->name('reservas.update');
+        Route::put('/{id}/estado', [Reservas\ReservaController::class, 'cambiarEstado'])->name('reservas.cambiarEstado');
+        Route::delete('/{id}', [Reservas\ReservaController::class, 'destroy'])->name('reservas.delete');
+    });
+
+    // Acompanantes reserva
+    Route::group(["prefix" => "acompanantes-reserva"], function () {
+        Route::get('/', [Reservas\AcompananteReservaController::class, 'index'])->name('acompanantes-reserva.index');
+        Route::post('/', [Reservas\AcompananteReservaController::class, 'store'])->name('acompanantes-reserva.store');
+        Route::get('/{id}', [Reservas\AcompananteReservaController::class, 'show'])->name('acompanantes-reserva.show');
+        Route::put('/{id}', [Reservas\AcompananteReservaController::class, 'update'])->name('acompanantes-reserva.update');
+        Route::delete('/{id}', [Reservas\AcompananteReservaController::class, 'destroy'])->name('acompanantes-reserva.delete');
+    });
+
+    // Favoritos
+    Route::group(["prefix" => "favoritos"], function () {
+        Route::get('/', [Turismo\FavoritoController::class, 'index'])->name('favoritos.index');
+        Route::post('/', [Turismo\FavoritoController::class, 'store'])->name('favoritos.store');
+        Route::delete('/{id}', [Turismo\FavoritoController::class, 'destroy'])->name('favoritos.delete');
+    });
+
+    // Resenas
+    Route::group(["prefix" => "resenas"], function () {
+        Route::get('/', [Resenas\ResenaController::class, 'index'])->name('resenas.index');
+        Route::post('/', [Resenas\ResenaController::class, 'store'])->name('resenas.store');
+        Route::get('/{id}', [Resenas\ResenaController::class, 'show'])->name('resenas.show');
+        Route::put('/{id}', [Resenas\ResenaController::class, 'update'])->name('resenas.update');
+        Route::delete('/{id}', [Resenas\ResenaController::class, 'destroy'])->name('resenas.delete');
+    });
+
+    // Multimedia resena
+    Route::group(["prefix" => "multimedia-resena"], function () {
+        Route::get('/', [Resenas\MultimediaResenaController::class, 'index'])->name('multimedia-resena.index');
+        Route::post('/', [Resenas\MultimediaResenaController::class, 'store'])->name('multimedia-resena.store');
+        Route::delete('/{id}', [Resenas\MultimediaResenaController::class, 'destroy'])->name('multimedia-resena.delete');
+    });
+
+    // Promociones
+    Route::group(["prefix" => "promociones"], function () {
+        Route::get('/', [Promociones\PromocionController::class, 'index'])->name('promociones.index');
+        Route::post('/', [Promociones\PromocionController::class, 'store'])->name('promociones.store');
+        Route::get('/{id}', [Promociones\PromocionController::class, 'show'])->name('promociones.show');
+        Route::put('/{id}', [Promociones\PromocionController::class, 'update'])->name('promociones.update');
+        Route::delete('/{id}', [Promociones\PromocionController::class, 'destroy'])->name('promociones.delete');
+    });
+
+    // Promocion experiencias
+    Route::group(["prefix" => "promocion-experiencias"], function () {
+        Route::get('/', [Promociones\PromocionExperienciaController::class, 'index'])->name('promocion-experiencias.index');
+        Route::post('/', [Promociones\PromocionExperienciaController::class, 'store'])->name('promocion-experiencias.store');
+        Route::delete('/{id}', [Promociones\PromocionExperienciaController::class, 'destroy'])->name('promocion-experiencias.delete');
+    });
+
+    // Notificaciones
+    Route::group(["prefix" => "notificaciones"], function () {
+        Route::get('/', [Turismo\NotificacionController::class, 'index'])->name('notificaciones.index');
+        Route::post('/', [Turismo\NotificacionController::class, 'store'])->name('notificaciones.store');
+        Route::put('/{id}/leida', [Turismo\NotificacionController::class, 'marcarLeida'])->name('notificaciones.marcarLeida');
+        Route::delete('/{id}', [Turismo\NotificacionController::class, 'destroy'])->name('notificaciones.delete');
+    });
 });
