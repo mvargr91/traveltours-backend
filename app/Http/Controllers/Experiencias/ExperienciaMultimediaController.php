@@ -7,11 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\ExperienciaMultimedia;
 
 class ExperienciaMultimediaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -25,6 +28,10 @@ class ExperienciaMultimediaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaMultimedia::obtenerColeccion($datos), Response::HTTP_OK);
@@ -55,6 +62,10 @@ class ExperienciaMultimediaController extends Controller
                 );
             }
 
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
+            }
+
             $media = ExperienciaMultimedia::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -80,6 +91,10 @@ class ExperienciaMultimediaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_multimedia', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaMultimedia::cargar($id), Response::HTTP_OK);
@@ -110,6 +125,10 @@ class ExperienciaMultimediaController extends Controller
                 );
             }
 
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_multimedia', $id)) {
+                return $this->respuestaSinAcceso();
+            }
+
             $media = ExperienciaMultimedia::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -136,6 +155,10 @@ class ExperienciaMultimediaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_multimedia', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = ExperienciaMultimedia::eliminar($id);

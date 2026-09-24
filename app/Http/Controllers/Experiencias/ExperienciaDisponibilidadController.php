@@ -7,11 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\ExperienciaDisponibilidad;
 
 class ExperienciaDisponibilidadController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -27,6 +30,10 @@ class ExperienciaDisponibilidadController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaDisponibilidad::obtenerColeccion($datos), Response::HTTP_OK);
@@ -57,6 +64,10 @@ class ExperienciaDisponibilidadController extends Controller
                 );
             }
 
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
+            }
+
             $disponibilidad = ExperienciaDisponibilidad::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -82,6 +93,10 @@ class ExperienciaDisponibilidadController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_disponibilidad', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaDisponibilidad::cargar($id), Response::HTTP_OK);
@@ -113,6 +128,10 @@ class ExperienciaDisponibilidadController extends Controller
                 );
             }
 
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_disponibilidad', $id)) {
+                return $this->respuestaSinAcceso();
+            }
+
             $disponibilidad = ExperienciaDisponibilidad::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -139,6 +158,10 @@ class ExperienciaDisponibilidadController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_disponibilidad', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = ExperienciaDisponibilidad::eliminar($id);

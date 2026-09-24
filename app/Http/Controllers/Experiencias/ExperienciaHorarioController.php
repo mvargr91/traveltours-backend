@@ -7,11 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\ExperienciaHorario;
 
 class ExperienciaHorarioController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -25,6 +28,10 @@ class ExperienciaHorarioController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaHorario::obtenerColeccion($datos), Response::HTTP_OK);
@@ -54,6 +61,10 @@ class ExperienciaHorarioController extends Controller
                 );
             }
 
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
+            }
+
             $horario = ExperienciaHorario::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -79,6 +90,10 @@ class ExperienciaHorarioController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_horarios', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaHorario::cargar($id), Response::HTTP_OK);
@@ -109,6 +124,10 @@ class ExperienciaHorarioController extends Controller
                 );
             }
 
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_horarios', $id)) {
+                return $this->respuestaSinAcceso();
+            }
+
             $horario = ExperienciaHorario::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -135,6 +154,10 @@ class ExperienciaHorarioController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_horarios', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = ExperienciaHorario::eliminar($id);

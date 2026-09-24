@@ -7,15 +7,18 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\Experiencia;
 
 class ExperienciaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), 'proveedor_id', null);
             if (!$request->ligera) {
                 $validator = Validator::make($datos, [
                     'limite' => 'integer|between:1,500'
@@ -47,7 +50,7 @@ class ExperienciaController extends Controller
     {
         DB::beginTransaction();
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), 'proveedor_id', null);
             $validator = Validator::make($datos, [
                 'proveedor_id' => 'integer|required|exists:proveedores_turisticos,id',
                 'destino_id' => 'integer|required|exists:destinos,id',
@@ -66,6 +69,12 @@ class ExperienciaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            // El proveedor no puede autodestacarse ni autoverificarse; el estado va por cambiarEstado.
+            if ($this->esProveedor()) {
+                unset($datos['destacada'], $datos['verificada']);
+                $datos['estado'] = 'borrador';
             }
 
             $experiencia = Experiencia::modificarOCrear($datos);
@@ -101,6 +110,10 @@ class ExperienciaController extends Controller
                 );
             }
 
+            if (!$this->experienciaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+
             return response(Experiencia::cargar($id), Response::HTTP_OK);
         } catch (Exception $e) {
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -132,6 +145,16 @@ class ExperienciaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+            // El proveedor no puede autodestacarse ni autoverificarse; el estado va por cambiarEstado.
+            if ($this->esProveedor()) {
+                unset($datos['destacada'], $datos['verificada']);
+                unset($datos['estado']);
+                $datos['proveedor_id'] = $this->proveedorActualId();
             }
 
             $experiencia = Experiencia::modificarOCrear($datos);
@@ -169,6 +192,14 @@ class ExperienciaController extends Controller
                 );
             }
 
+            if (!$this->experienciaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+            // El proveedor solo envía a revisión o archiva; aprobar/publicar es del administrador.
+            if ($this->esProveedor() && !in_array($datos['estado'], ['borrador', 'en_revision', 'archivada'])) {
+                return $this->respuestaSinAcceso();
+            }
+
             $experiencia = Experiencia::cambiarEstado($id, $datos['estado']);
             DB::commit();
             return response(
@@ -195,6 +226,10 @@ class ExperienciaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = Experiencia::eliminar($id);

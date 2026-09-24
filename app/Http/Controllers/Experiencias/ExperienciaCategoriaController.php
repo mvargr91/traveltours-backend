@@ -7,11 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\ExperienciaCategoria;
 
 class ExperienciaCategoriaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -25,6 +28,10 @@ class ExperienciaCategoriaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaCategoria::obtenerColeccion($datos), Response::HTTP_OK);
@@ -48,6 +55,10 @@ class ExperienciaCategoriaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             $relacion = ExperienciaCategoria::crear($datos);
@@ -76,6 +87,10 @@ class ExperienciaCategoriaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_categoria', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = ExperienciaCategoria::eliminar($id);

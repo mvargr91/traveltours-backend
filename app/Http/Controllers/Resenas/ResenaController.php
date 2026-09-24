@@ -7,15 +7,18 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Resenas\Resena;
 
 class ResenaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), null, 'usuario_id');
             $validator = Validator::make($datos, [
                 'limite' => 'integer|between:1,500'
             ]);
@@ -41,7 +44,7 @@ class ResenaController extends Controller
     {
         DB::beginTransaction();
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), null, 'usuario_id');
             $validator = Validator::make($datos, [
                 'usuario_id' => 'integer|required|exists:usuarios,id',
                 'experiencia_id' => 'integer|required|exists:experiencias,id',
@@ -90,6 +93,10 @@ class ResenaController extends Controller
                 );
             }
 
+            if (!$this->enAlcance(null, DB::table('resenas')->where('id', $id)->value('usuario_id'))) {
+                return $this->respuestaSinAcceso();
+            }
+
             return response(Resena::cargar($id), Response::HTTP_OK);
         } catch (Exception $e) {
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -101,6 +108,10 @@ class ResenaController extends Controller
         DB::beginTransaction();
         try {
             $datos = $request->all();
+            // Si el cliente edita su reseña, vuelve a moderación.
+            if ($this->esCliente()) {
+                $datos['estado'] = 'pendiente';
+            }
             $datos['id'] = $id;
             $validator = Validator::make($datos, [
                 'id' => 'integer|required|exists:resenas,id',
@@ -114,6 +125,10 @@ class ResenaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->enAlcance(null, DB::table('resenas')->where('id', $id)->value('usuario_id'))) {
+                return $this->respuestaSinAcceso();
             }
 
             $resena = Resena::modificarOCrear($datos);
@@ -147,6 +162,10 @@ class ResenaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->enAlcance(null, DB::table('resenas')->where('id', $id)->value('usuario_id'))) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = Resena::eliminar($id);

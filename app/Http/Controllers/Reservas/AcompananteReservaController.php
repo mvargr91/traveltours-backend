@@ -7,11 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\AcompananteReserva;
 
 class AcompananteReservaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -25,6 +28,10 @@ class AcompananteReservaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->reservaEnAlcance($datos['reserva_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(AcompananteReserva::obtenerColeccion($datos), Response::HTTP_OK);
@@ -54,6 +61,10 @@ class AcompananteReservaController extends Controller
                 );
             }
 
+            if (!$this->reservaEnAlcance($datos['reserva_id'])) {
+                return $this->respuestaSinAcceso();
+            }
+
             $acompanante = AcompananteReserva::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -79,6 +90,10 @@ class AcompananteReservaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->reservaEnAlcance(DB::table('acompanantes_reserva')->where('id', $id)->value('reserva_id'))) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(AcompananteReserva::cargar($id), Response::HTTP_OK);
@@ -109,6 +124,10 @@ class AcompananteReservaController extends Controller
                 );
             }
 
+            if (!$this->reservaEnAlcance(DB::table('acompanantes_reserva')->where('id', $id)->value('reserva_id'))) {
+                return $this->respuestaSinAcceso();
+            }
+
             $acompanante = AcompananteReserva::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -135,6 +154,10 @@ class AcompananteReservaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->reservaEnAlcance(DB::table('acompanantes_reserva')->where('id', $id)->value('reserva_id'))) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = AcompananteReserva::eliminar($id);

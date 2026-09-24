@@ -7,11 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\ExperienciaCaracteristica;
 
 class ExperienciaCaracteristicaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -25,6 +28,10 @@ class ExperienciaCaracteristicaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             return response(ExperienciaCaracteristica::obtenerColeccion($datos), Response::HTTP_OK);
@@ -49,6 +56,10 @@ class ExperienciaCaracteristicaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             $relacion = ExperienciaCaracteristica::modificarOCrear($datos);
@@ -81,6 +92,10 @@ class ExperienciaCaracteristicaController extends Controller
                 );
             }
 
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_caracteristica', $id)) {
+                return $this->respuestaSinAcceso();
+            }
+
             $relacion = ExperienciaCaracteristica::modificarOCrear($datos);
             DB::commit();
             return response(
@@ -107,6 +122,10 @@ class ExperienciaCaracteristicaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->registroDeExperienciaEnAlcance('experiencia_caracteristica', $id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = ExperienciaCaracteristica::eliminar($id);

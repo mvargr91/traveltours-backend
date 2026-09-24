@@ -7,15 +7,18 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\Reserva;
 
 class ReservaController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all());
             if (!$request->ligera) {
                 $validator = Validator::make($datos, [
                     'limite' => 'integer|between:1,500'
@@ -47,7 +50,7 @@ class ReservaController extends Controller
     {
         DB::beginTransaction();
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), null, 'usuario_id');
             $validator = Validator::make($datos, [
                 'usuario_id' => 'integer|required|exists:usuarios,id',
                 'experiencia_id' => 'integer|required|exists:experiencias,id',
@@ -70,6 +73,12 @@ class ReservaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            // El proveedor de la reserva siempre es el de la experiencia (no el que envíe el cliente HTTP).
+            $datos['proveedor_id'] = DB::table('experiencias')->where('id', $datos['experiencia_id'])->value('proveedor_id');
+            if (!$this->enAlcance($datos['proveedor_id'], $datos['usuario_id'])) {
+                return $this->respuestaSinAcceso();
             }
 
             $reserva = Reserva::modificarOCrear($datos);
@@ -105,6 +114,10 @@ class ReservaController extends Controller
                 );
             }
 
+            if (!$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+
             return response(Reserva::cargar($id), Response::HTTP_OK);
         } catch (Exception $e) {
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -135,6 +148,10 @@ class ReservaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $reserva = Reserva::modificarOCrear($datos);
@@ -172,6 +189,14 @@ class ReservaController extends Controller
                 );
             }
 
+            if (!$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+            // El cliente solo puede cancelar su reserva.
+            if ($this->esCliente() && $datos['estado'] !== 'cancelada') {
+                return $this->respuestaSinAcceso();
+            }
+
             $reserva = Reserva::cambiarEstado($id, $datos['estado']);
             DB::commit();
             return response(
@@ -198,6 +223,10 @@ class ReservaController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = Reserva::eliminar($id);

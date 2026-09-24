@@ -184,4 +184,23 @@ class Categoria extends Model
 
         return $categoria->delete();
     }
+
+
+    // ---------------------- Portal público -------------------------- //
+
+    public static function obtenerColeccionPublica($dto)
+    {
+        return DB::table('categorias')
+            ->where('categorias.estado', 1)
+            ->select(
+                'categorias.id',
+                'categorias.categoria_padre_id',
+                'categorias.nombre',
+                'categorias.slug',
+                'categorias.imagen',
+            )
+            ->orderBy('categorias.orden')
+            ->orderBy('categorias.nombre')
+            ->get();
+    }
 }

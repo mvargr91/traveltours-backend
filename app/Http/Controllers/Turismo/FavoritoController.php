@@ -7,15 +7,18 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Turismo\Favorito;
 
 class FavoritoController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), null, 'usuario_id');
             $validator = Validator::make($datos, [
                 'usuario_id' => 'integer|required|exists:usuarios,id'
             ]);
@@ -37,7 +40,7 @@ class FavoritoController extends Controller
     {
         DB::beginTransaction();
         try {
-            $datos = $request->all();
+            $datos = $this->aplicarAlcance($request->all(), null, 'usuario_id');
             $validator = Validator::make($datos, [
                 'usuario_id' => 'integer|required|exists:usuarios,id',
                 'experiencia_id' => 'integer|required|exists:experiencias,id',
@@ -76,6 +79,10 @@ class FavoritoController extends Controller
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+
+            if (!$this->enAlcance(null, DB::table('favoritos')->where('id', $id)->value('usuario_id'))) {
+                return $this->respuestaSinAcceso();
             }
 
             $eliminado = Favorito::eliminar($id);

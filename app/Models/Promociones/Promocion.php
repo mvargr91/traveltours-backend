@@ -189,4 +189,41 @@ class Promocion extends Model
 
         return $promocion->delete();
     }
+
+
+    // ---------------------- Portal público -------------------------- //
+
+    public static function obtenerVigentes($dto)
+    {
+        $hoy = Carbon::now()->toDateString();
+
+        $promociones = DB::table('promociones')
+            ->where('estado', 1)
+            ->where('fecha_inicio', '<=', $hoy)
+            ->where('fecha_fin', '>=', $hoy)
+            ->orderBy('fecha_fin')
+            ->select('id', 'nombre', 'descripcion', 'tipo_descuento', 'valor_descuento', 'fecha_inicio', 'fecha_fin')
+            ->get();
+
+        foreach ($promociones as $promocion) {
+            $promocion->experiencias = DB::table('promocion_experiencia')
+                ->join('experiencias', 'experiencias.id', '=', 'promocion_experiencia.experiencia_id')
+                ->join('destinos', 'destinos.id', '=', 'experiencias.destino_id')
+                ->where('promocion_experiencia.promocion_id', $promocion->id)
+                ->where('experiencias.estado', 'publicada')
+                ->select(
+                    'experiencias.id',
+                    'experiencias.nombre',
+                    'experiencias.slug',
+                    'experiencias.precio_desde',
+                    'destinos.nombre as destino_nombre',
+                    DB::raw("(SELECT em.ruta_archivo FROM experiencia_multimedia em
+                        WHERE em.experiencia_id = experiencias.id AND em.tipo = 'foto' AND em.estado = 1
+                        ORDER BY em.orden ASC, em.id ASC LIMIT 1) AS imagen"),
+                )
+                ->get();
+        }
+
+        return $promociones;
+    }
 }

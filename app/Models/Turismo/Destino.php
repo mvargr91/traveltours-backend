@@ -200,4 +200,31 @@ class Destino extends Model
 
         return $destino->delete();
     }
+
+
+    // ---------------------- Portal público -------------------------- //
+
+    public static function obtenerColeccionPublica($dto)
+    {
+        $query = DB::table('destinos')
+            ->where('destinos.estado', 1)
+            ->select(
+                'destinos.id',
+                'destinos.nombre',
+                'destinos.slug',
+                'destinos.ciudad',
+                'destinos.departamento',
+                'destinos.descripcion',
+                'destinos.imagen',
+                'destinos.destacado',
+                DB::raw("(SELECT COUNT(*) FROM experiencias e
+                    WHERE e.destino_id = destinos.id AND e.estado = 'publicada') AS total_experiencias"),
+            );
+
+        if (isset($dto['destacado'])) {
+            $query->where('destinos.destacado', 1);
+        }
+
+        return $query->orderBy('destinos.destacado', 'desc')->orderBy('destinos.nombre')->get();
+    }
 }

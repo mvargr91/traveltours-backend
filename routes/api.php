@@ -10,6 +10,7 @@ use App\Http\Controllers\Reservas;
 use App\Http\Controllers\Promociones;
 use App\Http\Controllers\Proveedores;
 use App\Http\Controllers\Resenas;
+use App\Http\Controllers\Publico;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\ExtractoController;
 use App\Http\Controllers\PortafolioController;
@@ -33,6 +34,15 @@ Route::post('/login', [UserController::class, 'login'])->name('oauth.login');
 // Route::post('oauth/token', [AccessTokenController::class, 'issueToken']);
 Route::post('oauth/token', [AccessTokenController::class, 'issueToken'])->name('oauth.token');
 
+
+// ---------------------- Portal público (sin autenticación) -------------------------- //
+Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], function () {
+    Route::get('/destinos', [Publico\PortalController::class, 'destinos'])->name('publico.destinos');
+    Route::get('/categorias', [Publico\PortalController::class, 'categorias'])->name('publico.categorias');
+    Route::get('/experiencias', [Publico\PortalController::class, 'experiencias'])->name('publico.experiencias');
+    Route::get('/experiencias/{slug}', [Publico\PortalController::class, 'experiencia'])->name('publico.experiencia');
+    Route::get('/promociones', [Publico\PortalController::class, 'promociones'])->name('publico.promociones');
+});
 
 Route::group(['middleware' => ['auth:api']], function (){
     // User
@@ -517,56 +527,56 @@ Route::group(['middleware' => ['auth:api']], function (){
     // Destinos
     Route::group(["prefix" => "destinos"], function () {
         Route::get('/', [Turismo\DestinoController::class, 'index'])->name('destinos.index');
-        Route::post('/', [Turismo\DestinoController::class, 'store'])->name('destinos.store');
+        Route::post('/', [Turismo\DestinoController::class, 'store'])->name('destinos.store')->middleware('permission:CrearDestino');
         Route::get('/{id}', [Turismo\DestinoController::class, 'show'])->name('destinos.show');
-        Route::put('/{id}', [Turismo\DestinoController::class, 'update'])->name('destinos.update');
-        Route::delete('/{id}', [Turismo\DestinoController::class, 'destroy'])->name('destinos.delete');
+        Route::put('/{id}', [Turismo\DestinoController::class, 'update'])->name('destinos.update')->middleware('permission:ModificarDestino');
+        Route::delete('/{id}', [Turismo\DestinoController::class, 'destroy'])->name('destinos.delete')->middleware('permission:EliminarDestino');
     });
 
     // Categorias
     Route::group(["prefix" => "categorias"], function () {
         Route::get('/', [Turismo\CategoriaController::class, 'index'])->name('categorias.index');
-        Route::post('/', [Turismo\CategoriaController::class, 'store'])->name('categorias.store');
+        Route::post('/', [Turismo\CategoriaController::class, 'store'])->name('categorias.store')->middleware('permission:CrearCategoria');
         Route::get('/{id}', [Turismo\CategoriaController::class, 'show'])->name('categorias.show');
-        Route::put('/{id}', [Turismo\CategoriaController::class, 'update'])->name('categorias.update');
-        Route::delete('/{id}', [Turismo\CategoriaController::class, 'destroy'])->name('categorias.delete');
+        Route::put('/{id}', [Turismo\CategoriaController::class, 'update'])->name('categorias.update')->middleware('permission:ModificarCategoria');
+        Route::delete('/{id}', [Turismo\CategoriaController::class, 'destroy'])->name('categorias.delete')->middleware('permission:EliminarCategoria');
     });
 
     // Caracteristicas
     Route::group(["prefix" => "caracteristicas"], function () {
         Route::get('/', [Turismo\CaracteristicaController::class, 'index'])->name('caracteristicas.index');
-        Route::post('/', [Turismo\CaracteristicaController::class, 'store'])->name('caracteristicas.store');
+        Route::post('/', [Turismo\CaracteristicaController::class, 'store'])->name('caracteristicas.store')->middleware('permission:CrearCaracteristica');
         Route::get('/{id}', [Turismo\CaracteristicaController::class, 'show'])->name('caracteristicas.show');
-        Route::put('/{id}', [Turismo\CaracteristicaController::class, 'update'])->name('caracteristicas.update');
-        Route::delete('/{id}', [Turismo\CaracteristicaController::class, 'destroy'])->name('caracteristicas.delete');
+        Route::put('/{id}', [Turismo\CaracteristicaController::class, 'update'])->name('caracteristicas.update')->middleware('permission:ModificarCaracteristica');
+        Route::delete('/{id}', [Turismo\CaracteristicaController::class, 'destroy'])->name('caracteristicas.delete')->middleware('permission:EliminarCaracteristica');
     });
 
     // Proveedores turisticos
     Route::group(["prefix" => "proveedores-turisticos"], function () {
         Route::get('/', [Proveedores\ProveedorTuristicoController::class, 'index'])->name('proveedores-turisticos.index');
-        Route::post('/', [Proveedores\ProveedorTuristicoController::class, 'store'])->name('proveedores-turisticos.store');
+        Route::post('/', [Proveedores\ProveedorTuristicoController::class, 'store'])->name('proveedores-turisticos.store')->middleware('permission:CrearProveedorTuristico');
         Route::get('/{id}', [Proveedores\ProveedorTuristicoController::class, 'show'])->name('proveedores-turisticos.show');
-        Route::put('/{id}', [Proveedores\ProveedorTuristicoController::class, 'update'])->name('proveedores-turisticos.update');
-        Route::put('/{id}/verificar', [Proveedores\ProveedorTuristicoController::class, 'verificar'])->name('proveedores-turisticos.verificar');
-        Route::delete('/{id}', [Proveedores\ProveedorTuristicoController::class, 'destroy'])->name('proveedores-turisticos.delete');
+        Route::put('/{id}', [Proveedores\ProveedorTuristicoController::class, 'update'])->name('proveedores-turisticos.update')->middleware('permission:ModificarProveedorTuristico');
+        Route::put('/{id}/verificar', [Proveedores\ProveedorTuristicoController::class, 'verificar'])->name('proveedores-turisticos.verificar')->middleware('permission:ModificarProveedorTuristico');
+        Route::delete('/{id}', [Proveedores\ProveedorTuristicoController::class, 'destroy'])->name('proveedores-turisticos.delete')->middleware('permission:EliminarProveedorTuristico');
     });
 
     // Documentos proveedor
     Route::group(["prefix" => "documentos-proveedor"], function () {
         Route::get('/', [Proveedores\DocumentoProveedorController::class, 'index'])->name('documentos-proveedor.index');
-        Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store');
+        Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store')->middleware('permission:CrearProveedorTuristico');
         Route::get('/{id}', [Proveedores\DocumentoProveedorController::class, 'show'])->name('documentos-proveedor.show');
-        Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update');
-        Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete');
+        Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update')->middleware('permission:ModificarProveedorTuristico');
+        Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico');
     });
 
     // Cupones
     Route::group(["prefix" => "cupones"], function () {
         Route::get('/', [Turismo\CuponController::class, 'index'])->name('cupones.index');
-        Route::post('/', [Turismo\CuponController::class, 'store'])->name('cupones.store');
+        Route::post('/', [Turismo\CuponController::class, 'store'])->name('cupones.store')->middleware('permission:CrearCupon');
         Route::get('/{id}', [Turismo\CuponController::class, 'show'])->name('cupones.show');
-        Route::put('/{id}', [Turismo\CuponController::class, 'update'])->name('cupones.update');
-        Route::delete('/{id}', [Turismo\CuponController::class, 'destroy'])->name('cupones.delete');
+        Route::put('/{id}', [Turismo\CuponController::class, 'update'])->name('cupones.update')->middleware('permission:ModificarCupon');
+        Route::delete('/{id}', [Turismo\CuponController::class, 'destroy'])->name('cupones.delete')->middleware('permission:EliminarCupon');
     });
 
     // Experiencias
@@ -675,17 +685,17 @@ Route::group(['middleware' => ['auth:api']], function (){
     // Promociones
     Route::group(["prefix" => "promociones"], function () {
         Route::get('/', [Promociones\PromocionController::class, 'index'])->name('promociones.index');
-        Route::post('/', [Promociones\PromocionController::class, 'store'])->name('promociones.store');
+        Route::post('/', [Promociones\PromocionController::class, 'store'])->name('promociones.store')->middleware('permission:CrearPromocion');
         Route::get('/{id}', [Promociones\PromocionController::class, 'show'])->name('promociones.show');
-        Route::put('/{id}', [Promociones\PromocionController::class, 'update'])->name('promociones.update');
-        Route::delete('/{id}', [Promociones\PromocionController::class, 'destroy'])->name('promociones.delete');
+        Route::put('/{id}', [Promociones\PromocionController::class, 'update'])->name('promociones.update')->middleware('permission:ModificarPromocion');
+        Route::delete('/{id}', [Promociones\PromocionController::class, 'destroy'])->name('promociones.delete')->middleware('permission:EliminarPromocion');
     });
 
     // Promocion experiencias
     Route::group(["prefix" => "promocion-experiencias"], function () {
         Route::get('/', [Promociones\PromocionExperienciaController::class, 'index'])->name('promocion-experiencias.index');
-        Route::post('/', [Promociones\PromocionExperienciaController::class, 'store'])->name('promocion-experiencias.store');
-        Route::delete('/{id}', [Promociones\PromocionExperienciaController::class, 'destroy'])->name('promocion-experiencias.delete');
+        Route::post('/', [Promociones\PromocionExperienciaController::class, 'store'])->name('promocion-experiencias.store')->middleware('permission:CrearPromocion');
+        Route::delete('/{id}', [Promociones\PromocionExperienciaController::class, 'destroy'])->name('promocion-experiencias.delete')->middleware('permission:EliminarPromocion');
     });
 
     // Notificaciones
