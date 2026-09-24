@@ -153,7 +153,17 @@ class Usuario extends Model
                 'usuarios.nombre',
                 'usuarios.estado',
             );
-        return $query->get();
+        if (isset($dto['rol'])) {
+            $query->whereExists(function ($q) use ($dto) {
+                $q->select(DB::raw(1))
+                    ->from('model_has_roles')
+                    ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                    ->whereColumn('model_has_roles.model_id', 'usuarios.user_id')
+                    ->where('model_has_roles.model_type', User::class)
+                    ->where('roles.name', $dto['rol']);
+            });
+        }
+        return $query->orderBy('usuarios.nombre')->get();
     }
 
     public static function obtenerColeccion($dto){

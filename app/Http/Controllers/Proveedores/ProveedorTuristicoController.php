@@ -49,7 +49,7 @@ class ProveedorTuristicoController extends Controller
         try {
             $datos = $request->all();
             $validator = Validator::make($datos, [
-                'usuario_id' => 'integer|nullable|exists:usuarios,id',
+                'usuario_id' => 'integer|nullable|exists:usuarios,id|unique:proveedores_turisticos,usuario_id',
                 'nombre_comercial' => 'string|required|max:150',
                 'razon_social' => 'string|nullable|max:150',
                 'nit' => 'string|nullable|max:50',
@@ -114,7 +114,7 @@ class ProveedorTuristicoController extends Controller
             $datos['id'] = $id;
             $validator = Validator::make($datos, [
                 'id' => 'integer|required|exists:proveedores_turisticos,id',
-                'usuario_id' => 'integer|nullable|exists:usuarios,id',
+                'usuario_id' => 'integer|nullable|exists:usuarios,id|unique:proveedores_turisticos,usuario_id,' . $id,
                 'nombre_comercial' => 'string|required|max:150',
                 'razon_social' => 'string|nullable|max:150',
                 'nit' => 'string|nullable|max:50',

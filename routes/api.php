@@ -42,6 +42,7 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     Route::get('/experiencias', [Publico\PortalController::class, 'experiencias'])->name('publico.experiencias');
     Route::get('/experiencias/{slug}', [Publico\PortalController::class, 'experiencia'])->name('publico.experiencia');
     Route::get('/promociones', [Publico\PortalController::class, 'promociones'])->name('publico.promociones');
+    Route::post('/registro', [Publico\RegistroController::class, 'store'])->middleware('throttle:10,1')->name('publico.registro');
 });
 
 Route::group(['middleware' => ['auth:api']], function (){
