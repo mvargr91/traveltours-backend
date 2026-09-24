@@ -28,6 +28,7 @@ class Favorito extends Model
                 'favoritos.usuario_id',
                 'favoritos.experiencia_id',
                 'experiencias.nombre as experiencia_nombre',
+                'experiencias.slug as experiencia_slug',
                 'experiencias.precio_desde',
                 'favoritos.created_at as fecha_creacion',
             )

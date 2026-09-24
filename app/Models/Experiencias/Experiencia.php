@@ -407,6 +407,7 @@ class Experiencia extends Model
                 'experiencias.id',
                 'experiencias.nombre',
                 'experiencias.slug',
+                'experiencias.proveedor_id',
                 'experiencias.descripcion',
                 'experiencias.idioma',
                 'experiencias.incluye',
