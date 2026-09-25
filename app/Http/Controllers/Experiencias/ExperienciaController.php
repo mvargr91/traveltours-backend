@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Services\ArchivosService;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\Experiencia;
@@ -95,16 +96,19 @@ class ExperienciaController extends Controller
 
             if ($experiencia) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['La experiencia ha sido creada.', 2], $experiencia),
                     Response::HTTP_CREATED
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar crear la experiencia.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -186,16 +190,19 @@ class ExperienciaController extends Controller
             }
             if ($experiencia) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['La experiencia ha sido modificada.', 1], $experiencia),
                     Response::HTTP_OK
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar modificar la experiencia.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -228,12 +235,14 @@ class ExperienciaController extends Controller
 
             $experiencia = Experiencia::cambiarEstado($id, $datos['estado']);
             DB::commit();
+            ArchivosService::confirmar();
             return response(
                 get_response_body(['El estado de la experiencia ha sido actualizado.', 1], $experiencia),
                 Response::HTTP_OK
             );
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -258,19 +267,23 @@ class ExperienciaController extends Controller
                 return $this->respuestaSinAcceso();
             }
 
+            ArchivosService::programarEliminacionCarpeta('experiencias', $id);
             $eliminado = Experiencia::eliminar($id);
             if ($eliminado) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['La experiencia ha sido eliminada.', 3]),
                     Response::HTTP_OK
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar eliminar la experiencia.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Services\ArchivosService;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Turismo\Categoria;
 
@@ -51,6 +52,8 @@ class CategoriaController extends Controller
             $validator = Validator::make($datos, [
                 'categoria_padre_id' => 'integer|nullable|exists:categorias,id',
                 'nombre' => 'string|required|max:128',
+                'imagen' => 'string|nullable|max:255',
+                'archivo' => ArchivosService::REGLA_IMAGEN . '|nullable',
                 'slug' => 'string|required|max:150|unique:categorias,slug',
                 'orden' => 'integer|nullable',
                 'estado' => 'boolean|required',
@@ -63,20 +66,28 @@ class CategoriaController extends Controller
                 );
             }
 
+            $anterior = ArchivosService::rutaActual('categorias', $datos['id'] ?? null, 'imagen');
             $categoria = Categoria::modificarOCrear($datos);
+            if ($categoria && ArchivosService::adjuntar($request, 'categorias', $categoria['id'], 'imagen',
+                ArchivosService::carpeta('categorias', $categoria['id'], $categoria['nombre'], 'imagen'), $anterior)) {
+                $categoria = Categoria::cargar($categoria['id']);
+            }
 
             if ($categoria) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['La categoría ha sido creada.', 2], $categoria),
                     Response::HTTP_CREATED
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar crear la categoría.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -112,6 +123,8 @@ class CategoriaController extends Controller
                 'id' => 'integer|required|exists:categorias,id',
                 'categoria_padre_id' => 'integer|nullable|exists:categorias,id',
                 'nombre' => 'string|required|max:128',
+                'imagen' => 'string|nullable|max:255',
+                'archivo' => ArchivosService::REGLA_IMAGEN . '|nullable',
                 'slug' => 'string|required|max:150|unique:categorias,slug,' . $id,
                 'orden' => 'integer|nullable',
                 'estado' => 'boolean|required',
@@ -124,19 +137,27 @@ class CategoriaController extends Controller
                 );
             }
 
+            $anterior = ArchivosService::rutaActual('categorias', $datos['id'] ?? null, 'imagen');
             $categoria = Categoria::modificarOCrear($datos);
+            if ($categoria && ArchivosService::adjuntar($request, 'categorias', $categoria['id'], 'imagen',
+                ArchivosService::carpeta('categorias', $categoria['id'], $categoria['nombre'], 'imagen'), $anterior)) {
+                $categoria = Categoria::cargar($categoria['id']);
+            }
             if ($categoria) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['La categoría ha sido modificada.', 1], $categoria),
                     Response::HTTP_OK
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar modificar la categoría.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -157,19 +178,23 @@ class CategoriaController extends Controller
                 );
             }
 
+            ArchivosService::programarEliminacionCarpeta('categorias', $id);
             $eliminado = Categoria::eliminar($id);
             if ($eliminado) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['La categoría ha sido eliminada.', 3]),
                     Response::HTTP_OK
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar eliminar la categoría.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
