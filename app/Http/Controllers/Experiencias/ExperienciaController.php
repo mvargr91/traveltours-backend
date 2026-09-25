@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\Experiencia;
+use App\Models\Experiencias\ExperienciaPrecio;
 
 class ExperienciaController extends Controller
 {
@@ -62,7 +63,11 @@ class ExperienciaController extends Controller
                 'estado' => 'string|nullable|max:30',
                 'destacada' => 'boolean',
                 'verificada' => 'boolean',
-            ]);
+                'precios' => 'array|required|min:1',
+            ] + ExperienciaPrecio::reglas('precios.*.'), [
+                'precios.required' => 'La experiencia necesita al menos un precio.',
+                'precios.min' => 'La experiencia necesita al menos un precio.',
+            ] + ExperienciaPrecio::mensajes('precios.*.'));
 
             if ($validator->fails()) {
                 return response(
@@ -70,6 +75,11 @@ class ExperienciaController extends Controller
                     Response::HTTP_BAD_REQUEST
                 );
             }
+            if (isset($datos['precios']) && ($error = ExperienciaPrecio::validarCantidadesUnicas($datos['precios']))) {
+                return response(get_response_body([$error]), Response::HTTP_BAD_REQUEST);
+            }
+            // El "precio desde" se calcula a partir de los precios.
+            unset($datos['precio_desde']);
 
             // El proveedor no puede autodestacarse ni autoverificarse; el estado va por cambiarEstado.
             if ($this->esProveedor()) {
@@ -78,6 +88,10 @@ class ExperienciaController extends Controller
             }
 
             $experiencia = Experiencia::modificarOCrear($datos);
+            if ($experiencia && isset($datos['precios'])) {
+                ExperienciaPrecio::sincronizar($experiencia['id'], $datos['precios']);
+                $experiencia = Experiencia::cargar($experiencia['id']);
+            }
 
             if ($experiencia) {
                 DB::commit();
@@ -138,7 +152,10 @@ class ExperienciaController extends Controller
                 'estado' => 'string|nullable|max:30',
                 'destacada' => 'boolean',
                 'verificada' => 'boolean',
-            ]);
+                'precios' => 'array|sometimes|min:1',
+            ] + ExperienciaPrecio::reglas('precios.*.'), [
+                'precios.min' => 'La experiencia necesita al menos un precio.',
+            ] + ExperienciaPrecio::mensajes('precios.*.'));
 
             if ($validator->fails()) {
                 return response(
@@ -146,6 +163,11 @@ class ExperienciaController extends Controller
                     Response::HTTP_BAD_REQUEST
                 );
             }
+            if (isset($datos['precios']) && ($error = ExperienciaPrecio::validarCantidadesUnicas($datos['precios']))) {
+                return response(get_response_body([$error]), Response::HTTP_BAD_REQUEST);
+            }
+            // El "precio desde" se calcula a partir de los precios.
+            unset($datos['precio_desde']);
 
             if (!$this->experienciaEnAlcance($id)) {
                 return $this->respuestaSinAcceso();
@@ -158,6 +180,10 @@ class ExperienciaController extends Controller
             }
 
             $experiencia = Experiencia::modificarOCrear($datos);
+            if ($experiencia && isset($datos['precios'])) {
+                ExperienciaPrecio::sincronizar($experiencia['id'], $datos['precios']);
+                $experiencia = Experiencia::cargar($experiencia['id']);
+            }
             if ($experiencia) {
                 DB::commit();
                 return response(

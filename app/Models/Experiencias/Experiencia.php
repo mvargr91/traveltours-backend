@@ -187,6 +187,7 @@ class Experiencia extends Model
             'verificada' => $experiencia->verificada,
             'categorias' => $categorias,
             'caracteristicas' => $caracteristicas,
+            'precios' => ExperienciaPrecio::obtenerColeccion(['experiencia_id' => $id]),
             'usuario_creacion_id' => $experiencia->usuario_creacion_id,
             'usuario_creacion_nombre' => $experiencia->usuario_creacion_nombre,
             'usuario_modificacion_id' => $experiencia->usuario_modificacion_id,
@@ -442,11 +443,7 @@ class Experiencia extends Model
             ->select('id', 'tipo', 'ruta_archivo', 'titulo', 'texto_alternativo')
             ->get();
 
-        $experiencia->precios = DB::table('experiencia_precios')
-            ->where('experiencia_id', $id)->where('estado', 1)
-            ->orderBy('precio')
-            ->select('id', 'descripcion', 'tipo', 'cantidad', 'precio')
-            ->get();
+        $experiencia->precios = ExperienciaPrecio::obtenerColeccion(['experiencia_id' => $id, 'solo_activos' => true]);
 
         $experiencia->horarios = DB::table('experiencia_horarios')
             ->where('experiencia_id', $id)->where('estado', 1)
