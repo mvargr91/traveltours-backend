@@ -4,6 +4,13 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Seguridad;
 use App\Http\Controllers\Parametrizacion;
 use App\Http\Controllers\Inversiones;
+use App\Http\Controllers\Turismo;
+use App\Http\Controllers\Experiencias;
+use App\Http\Controllers\Reservas;
+use App\Http\Controllers\Promociones;
+use App\Http\Controllers\Proveedores;
+use App\Http\Controllers\Resenas;
+use App\Http\Controllers\Publico;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\ExtractoController;
 use App\Http\Controllers\PortafolioController;
@@ -28,115 +35,112 @@ Route::post('/login', [UserController::class, 'login'])->name('oauth.login');
 Route::post('oauth/token', [AccessTokenController::class, 'issueToken'])->name('oauth.token');
 
 
+// ---------------------- Portal público (sin autenticación) -------------------------- //
+Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], function () {
+    Route::get('/destinos', [Publico\PortalController::class, 'destinos'])->name('publico.destinos');
+    Route::get('/categorias', [Publico\PortalController::class, 'categorias'])->name('publico.categorias');
+    Route::get('/experiencias', [Publico\PortalController::class, 'experiencias'])->name('publico.experiencias');
+    Route::get('/experiencias/{slug}', [Publico\PortalController::class, 'experiencia'])->name('publico.experiencia');
+    Route::get('/promociones', [Publico\PortalController::class, 'promociones'])->name('publico.promociones');
+    Route::post('/registro', [Publico\RegistroController::class, 'store'])->middleware('throttle:10,1,registro')->name('publico.registro');
+});
+
 Route::group(['middleware' => ['auth:api']], function (){
     // User
     Route::group(["prefix" => "users"],function(){
         Route::get('current/session',  [UserController::class,'getSession'])->name('session.show');
     });
 
+    // Mi cuenta: datos del usuario autenticado (cualquier rol, solo los propios)
+    Route::group(["prefix" => "cuenta"], function () {
+        Route::get('/', [Seguridad\CuentaController::class, 'show'])->name('cuenta.show');
+        Route::put('/', [Seguridad\CuentaController::class, 'update'])->name('cuenta.update');
+        Route::put('/clave', [Seguridad\CuentaController::class, 'cambiarClave'])->middleware('throttle:10,1,cuenta-clave')->name('cuenta.clave');
+        Route::put('/proveedor', [Seguridad\CuentaController::class, 'actualizarProveedor'])->name('cuenta.proveedor');
+    });
+
+    // ---------------------- Seguridad -------------------------- //
+    // Todas las rutas exigen el permiso del rol: con el registro público cualquiera obtiene un token,
+    // así que sin esto un cliente podría editar usuarios, cambiar claves u otorgarse permisos.
+
     // Usuarios
     Route::group(["prefix" => "usuarios"],function(){
-        Route::get('/', [Seguridad\UsuarioController::class,'index'])->name('usuarios.index');
-        Route::post('/', [Seguridad\UsuarioController::class,'store'])->name('usuarios.store');
-            // ->middleware(['permission:CrearUsuario']);
-        Route::get('/{id}', [Seguridad\UsuarioController::class,'show'])->name('usuarios.show');
-        // ->middleware(['permission:ListarUsuario']);
-        Route::put('/cambio-clave', [Seguridad\UsuarioController::class,'changePassword'])->name('usuarios.changePassword');
-        Route::put('/{id}', [Seguridad\UsuarioController::class,'update'])->name('usuarios.update');
-            // ->middleware(['permission:ModificarUsuario']);
-        Route::delete('/{id}', [Seguridad\UsuarioController::class,'destroy'])->name('usuarios.delete');
-            // ->middleware(['permission:EliminarUsuario']);
+        // El formulario de reservas lista clientes: se permite también a quien gestiona reservas.
+        Route::get('/', [Seguridad\UsuarioController::class,'index'])->name('usuarios.index')->middleware('permission:ListarUsuario|ListarReserva');
+        Route::post('/', [Seguridad\UsuarioController::class,'store'])->name('usuarios.store')->middleware('permission:CrearUsuario');
+        Route::get('/{id}', [Seguridad\UsuarioController::class,'show'])->name('usuarios.show')->middleware('permission:ListarUsuario');
+        Route::put('/cambio-clave', [Seguridad\UsuarioController::class,'changePassword'])->name('usuarios.changePassword')->middleware('permission:CambiarClave');
+        Route::put('/{id}', [Seguridad\UsuarioController::class,'update'])->name('usuarios.update')->middleware('permission:ModificarUsuario');
+        Route::delete('/{id}', [Seguridad\UsuarioController::class,'destroy'])->name('usuarios.delete')->middleware('permission:EliminarUsuario');
     });
 
     // Roles
     Route::group(["prefix" => "roles"],function(){
-        Route::get('/', [Seguridad\RolController::class,'index'])->name('roles.index');
-        Route::get('/permisos/{id}', [Seguridad\RolController::class,'obtenerPermisos'])->name('roles.permisos');
-            // ->middleware(['permission:PermitirRol']);
-        Route::post('/permisos', [Seguridad\RolController::class,'otorgarPermisos'])->name('roles.otorgarPermisos');
-            // ->middleware(['permission:PermitirRol']);
-        Route::put('/permisos', [Seguridad\RolController::class,'revocarPermisos'])->name('roles.revocarPermisos');
-            // ->middleware(['permission:PermitirRol']);
-        Route::post('/', [Seguridad\RolController::class,'store'])->name('roles.store');
-            // ->middleware(['permission:CrearRol']);
-        Route::get('/{id}', [Seguridad\RolController::class,'show'])->name('roles.show');
-            // ->middleware(['permission:ListarRol']);
-        Route::put('/{id}', [Seguridad\RolController::class,'update'])->name('roles.update');
-            // ->middleware(['permission:ModificarRol']);
-        Route::delete('/{id}', [Seguridad\RolController::class,'destroy'])->name('roles.delete');
-            // ->middleware(['permission:EliminarRol']);
+        Route::get('/', [Seguridad\RolController::class,'index'])->name('roles.index')->middleware('permission:ListarRol|ListarUsuario');
+        Route::get('/permisos/{id}', [Seguridad\RolController::class,'obtenerPermisos'])->name('roles.permisos')->middleware('permission:PermitirRol');
+        Route::post('/permisos', [Seguridad\RolController::class,'otorgarPermisos'])->name('roles.otorgarPermisos')->middleware('permission:PermitirRol');
+        Route::put('/permisos', [Seguridad\RolController::class,'revocarPermisos'])->name('roles.revocarPermisos')->middleware('permission:PermitirRol');
+        Route::post('/', [Seguridad\RolController::class,'store'])->name('roles.store')->middleware('permission:CrearRol');
+        Route::get('/{id}', [Seguridad\RolController::class,'show'])->name('roles.show')->middleware('permission:ListarRol');
+        Route::put('/{id}', [Seguridad\RolController::class,'update'])->name('roles.update')->middleware('permission:ModificarRol');
+        Route::delete('/{id}', [Seguridad\RolController::class,'destroy'])->name('roles.delete')->middleware('permission:EliminarRol');
     });
 
     // Aplicaciones
     Route::group(["prefix" => "aplicaciones"],function(){
-        Route::get('/', [Seguridad\AplicacionController::class,'index'])->name('aplicaciones.index');
-        Route::post('/', [Seguridad\AplicacionController::class,'store'])->name('aplicaciones.store');
-            // ->middleware(['permission:CrearAplicacion']);
-        Route::get('/{id}', [Seguridad\AplicacionController::class,'show'])->name('aplicaciones.show');
-            // ->middleware(['permission:ListarAplicacion']);
-        Route::put('/{id}', [Seguridad\AplicacionController::class,'update'])->name('aplicaciones.update');
-            // ->middleware(['permission:ModificarAplicacion']);
-        Route::delete('/{id}', [Seguridad\AplicacionController::class,'destroy'])->name('aplicaciones.delete');
-            // ->middleware(['permission:EliminarAplicacion']);
+        Route::get('/', [Seguridad\AplicacionController::class,'index'])->name('aplicaciones.index')->middleware('permission:ListarAplicacion|ListarModulo');
+        Route::post('/', [Seguridad\AplicacionController::class,'store'])->name('aplicaciones.store')->middleware('permission:CrearAplicacion');
+        Route::get('/{id}', [Seguridad\AplicacionController::class,'show'])->name('aplicaciones.show')->middleware('permission:ListarAplicacion');
+        Route::put('/{id}', [Seguridad\AplicacionController::class,'update'])->name('aplicaciones.update')->middleware('permission:ModificarAplicacion');
+        Route::delete('/{id}', [Seguridad\AplicacionController::class,'destroy'])->name('aplicaciones.delete')->middleware('permission:EliminarAplicacion');
     });
 
     // Módulos
     Route::group(["prefix" => "modulos"],function(){
-        Route::get('/', [Seguridad\ModuloController::class,'index'])->name('modulos.index');
-        Route::post('/', [Seguridad\ModuloController::class,'store'])->name('modulos.store');
-            // ->middleware(['permission:CrearModulo']);
-        Route::get('/{id}', [Seguridad\ModuloController::class,'show'])->name('modulos.show');
-            // ->middleware(['permission:ListarModulo']);
-        Route::put('/{id}', [Seguridad\ModuloController::class,'update'])->name('modulos.update');
-            // ->middleware(['permission:ModificarModulo']);
-        Route::delete('/{id}', [Seguridad\ModuloController::class,'destroy'])->name('modulos.delete');
-            // ->middleware(['permission:EliminarModulo']);
+        Route::get('/', [Seguridad\ModuloController::class,'index'])->name('modulos.index')->middleware('permission:ListarModulo|ListarOpcionSistema');
+        Route::post('/', [Seguridad\ModuloController::class,'store'])->name('modulos.store')->middleware('permission:CrearModulo');
+        Route::get('/{id}', [Seguridad\ModuloController::class,'show'])->name('modulos.show')->middleware('permission:ListarModulo');
+        Route::put('/{id}', [Seguridad\ModuloController::class,'update'])->name('modulos.update')->middleware('permission:ModificarModulo');
+        Route::delete('/{id}', [Seguridad\ModuloController::class,'destroy'])->name('modulos.delete')->middleware('permission:EliminarModulo');
     });
 
     // Opciones del Sistema
     Route::group(["prefix" => "opciones-del-sistema"],function(){
-        Route::get('/', [Seguridad\OpcionSistemaController::class,'index'])->name('opciones-del-sistema.index');
-        Route::post('/', [Seguridad\OpcionSistemaController::class,'store'])->name('opciones-del-sistema.store');
-            // ->middleware(['permission:CrearOpcionSistema']);
-        Route::get('/{id}', [Seguridad\OpcionSistemaController::class,'show'])->name('opciones-del-sistema.show');
-            // ->middleware(['permission:ListarOpcionSistema']);
-        Route::put('/{id}', [Seguridad\OpcionSistemaController::class,'update'])->name('opciones-del-sistema.update');
-            // ->middleware(['permission:ModificarOpcionSistema']);
-        Route::delete('/{id}', [Seguridad\OpcionSistemaController::class,'destroy'])->name('opciones-del-sistema.delete');
-            // ->middleware(['permission:EliminarOpcionSistema']);
+        Route::get('/', [Seguridad\OpcionSistemaController::class,'index'])->name('opciones-del-sistema.index')->middleware('permission:ListarOpcionSistema|ListarAccionPermiso');
+        Route::post('/', [Seguridad\OpcionSistemaController::class,'store'])->name('opciones-del-sistema.store')->middleware('permission:CrearOpcionSistema');
+        Route::get('/{id}', [Seguridad\OpcionSistemaController::class,'show'])->name('opciones-del-sistema.show')->middleware('permission:ListarOpcionSistema');
+        Route::put('/{id}', [Seguridad\OpcionSistemaController::class,'update'])->name('opciones-del-sistema.update')->middleware('permission:ModificarOpcionSistema');
+        Route::delete('/{id}', [Seguridad\OpcionSistemaController::class,'destroy'])->name('opciones-del-sistema.delete')->middleware('permission:EliminarOpcionSistema');
     });
 
     // Permisos
     Route::group(["prefix" => "permisos"],function(){
-        Route::get('/', [Seguridad\PermisoController::class,'index'])->name('permisos.index');
-        Route::post('/', [Seguridad\PermisoController::class,'store'])->name('permisos.store');
-        Route::get('/{id}', [Seguridad\PermisoController::class,'show'])->name('permisos.show');
-        Route::put('/{id}', [Seguridad\PermisoController::class,'update'])->name('permisos.update');
-        Route::delete('/{id}', [Seguridad\PermisoController::class,'destroy'])->name('permisos.delete');
+        Route::get('/', [Seguridad\PermisoController::class,'index'])->name('permisos.index')->middleware('permission:ListarAccionPermiso|PermitirRol');
+        Route::post('/', [Seguridad\PermisoController::class,'store'])->name('permisos.store')->middleware('permission:CrearAccionPermiso');
+        Route::get('/{id}', [Seguridad\PermisoController::class,'show'])->name('permisos.show')->middleware('permission:ListarAccionPermiso');
+        Route::put('/{id}', [Seguridad\PermisoController::class,'update'])->name('permisos.update')->middleware('permission:ModificarAccionPermiso');
+        Route::delete('/{id}', [Seguridad\PermisoController::class,'destroy'])->name('permisos.delete')->middleware('permission:EliminarAccionPermiso');
     });
 
+    // Auditoría y Parametrización no tienen permisos propios en BD: quedan solo para el administrador.
     // Auditoria Tablas
-    Route::group(["prefix" => "auditoria-tablas"],function(){
+    Route::group(["prefix" => "auditoria-tablas", "middleware" => ["role:SuperSu"]],function(){
         Route::get('/', [Seguridad\AuditoriaTablaController::class,'index'])->name('auditoria-tablas.index');
     });
 
     // ---------------------- Parametrizacion -------------------------- //
 
-     // Parametros correos
-     Route::group(["prefix" => "parametros-correo"],function(){
+    // Parametros correos
+    Route::group(["prefix" => "parametros-correo", "middleware" => ["role:SuperSu"]],function(){
         Route::get('/', [Parametrizacion\ParametroCorreoController::class,'index'])->name('parametros_correo.index');
         Route::post('/', [Parametrizacion\ParametroCorreoController::class,'store'])->name('parametros_correo.store');
-            // ->middleware(['permission:CrearAplicacion']);
         Route::get('/{id}', [Parametrizacion\ParametroCorreoController::class,'show'])->name('parametros_correo.show');
-            // ->middleware(['permission:ListarAplicacion']);
         Route::put('/{id}', [Parametrizacion\ParametroCorreoController::class,'update'])->name('parametros_correo.update');
-            // ->middleware(['permission:ModificarAplicacion']);
         Route::delete('/{id}', [Parametrizacion\ParametroCorreoController::class,'destroy'])->name('parametros_correo.delete');
-            // ->middleware(['permission:EliminarAplicacion']);
     });
 
     // Parametros Constantes
-    Route::group(["prefix" => "parametros-constantes"],function(){
+    Route::group(["prefix" => "parametros-constantes", "middleware" => ["role:SuperSu"]],function(){
         Route::get('/', [Parametrizacion\ParametroConstanteController::class,'index'])->name('parametros-constantes.index');
         Route::post('/', [Parametrizacion\ParametroConstanteController::class,'store'])->name('parametros-constantes.store');
         Route::get('/consultar', [Parametrizacion\ParametroConstanteController::class,'consultar'])->name('parametros-constantes.consultar');
@@ -506,5 +510,187 @@ Route::group(['middleware' => ['auth:api']], function (){
     Route::post('/extractos', [ExtractoController::class, 'enviarExtractos']);
     Route::get('/exportar-portafolio', [PortafolioController::class, 'generarPDF']);
 
-    
+    // ---------------------- Turismo -------------------------- //
+
+    // Destinos
+    Route::group(["prefix" => "destinos"], function () {
+        Route::get('/', [Turismo\DestinoController::class, 'index'])->name('destinos.index');
+        Route::post('/', [Turismo\DestinoController::class, 'store'])->name('destinos.store')->middleware('permission:CrearDestino');
+        Route::get('/{id}', [Turismo\DestinoController::class, 'show'])->name('destinos.show');
+        Route::put('/{id}', [Turismo\DestinoController::class, 'update'])->name('destinos.update')->middleware('permission:ModificarDestino');
+        Route::delete('/{id}', [Turismo\DestinoController::class, 'destroy'])->name('destinos.delete')->middleware('permission:EliminarDestino');
+    });
+
+    // Categorias
+    Route::group(["prefix" => "categorias"], function () {
+        Route::get('/', [Turismo\CategoriaController::class, 'index'])->name('categorias.index');
+        Route::post('/', [Turismo\CategoriaController::class, 'store'])->name('categorias.store')->middleware('permission:CrearCategoria');
+        Route::get('/{id}', [Turismo\CategoriaController::class, 'show'])->name('categorias.show');
+        Route::put('/{id}', [Turismo\CategoriaController::class, 'update'])->name('categorias.update')->middleware('permission:ModificarCategoria');
+        Route::delete('/{id}', [Turismo\CategoriaController::class, 'destroy'])->name('categorias.delete')->middleware('permission:EliminarCategoria');
+    });
+
+    // Caracteristicas
+    Route::group(["prefix" => "caracteristicas"], function () {
+        Route::get('/', [Turismo\CaracteristicaController::class, 'index'])->name('caracteristicas.index');
+        Route::post('/', [Turismo\CaracteristicaController::class, 'store'])->name('caracteristicas.store')->middleware('permission:CrearCaracteristica');
+        Route::get('/{id}', [Turismo\CaracteristicaController::class, 'show'])->name('caracteristicas.show');
+        Route::put('/{id}', [Turismo\CaracteristicaController::class, 'update'])->name('caracteristicas.update')->middleware('permission:ModificarCaracteristica');
+        Route::delete('/{id}', [Turismo\CaracteristicaController::class, 'destroy'])->name('caracteristicas.delete')->middleware('permission:EliminarCaracteristica');
+    });
+
+    // Proveedores turisticos
+    Route::group(["prefix" => "proveedores-turisticos"], function () {
+        Route::get('/', [Proveedores\ProveedorTuristicoController::class, 'index'])->name('proveedores-turisticos.index');
+        Route::post('/', [Proveedores\ProveedorTuristicoController::class, 'store'])->name('proveedores-turisticos.store')->middleware('permission:CrearProveedorTuristico');
+        Route::get('/{id}', [Proveedores\ProveedorTuristicoController::class, 'show'])->name('proveedores-turisticos.show');
+        Route::put('/{id}', [Proveedores\ProveedorTuristicoController::class, 'update'])->name('proveedores-turisticos.update')->middleware('permission:ModificarProveedorTuristico');
+        Route::put('/{id}/verificar', [Proveedores\ProveedorTuristicoController::class, 'verificar'])->name('proveedores-turisticos.verificar')->middleware('permission:ModificarProveedorTuristico');
+        Route::delete('/{id}', [Proveedores\ProveedorTuristicoController::class, 'destroy'])->name('proveedores-turisticos.delete')->middleware('permission:EliminarProveedorTuristico');
+    });
+
+    // Documentos proveedor
+    Route::group(["prefix" => "documentos-proveedor"], function () {
+        Route::get('/', [Proveedores\DocumentoProveedorController::class, 'index'])->name('documentos-proveedor.index');
+        Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store')->middleware('permission:CrearProveedorTuristico');
+        Route::get('/{id}', [Proveedores\DocumentoProveedorController::class, 'show'])->name('documentos-proveedor.show');
+        Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update')->middleware('permission:ModificarProveedorTuristico');
+        Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico');
+    });
+
+    // Cupones
+    Route::group(["prefix" => "cupones"], function () {
+        Route::get('/', [Turismo\CuponController::class, 'index'])->name('cupones.index');
+        Route::post('/', [Turismo\CuponController::class, 'store'])->name('cupones.store')->middleware('permission:CrearCupon');
+        Route::get('/{id}', [Turismo\CuponController::class, 'show'])->name('cupones.show');
+        Route::put('/{id}', [Turismo\CuponController::class, 'update'])->name('cupones.update')->middleware('permission:ModificarCupon');
+        Route::delete('/{id}', [Turismo\CuponController::class, 'destroy'])->name('cupones.delete')->middleware('permission:EliminarCupon');
+    });
+
+    // Experiencias
+    Route::group(["prefix" => "experiencias"], function () {
+        Route::get('/', [Experiencias\ExperienciaController::class, 'index'])->name('experiencias.index');
+        Route::post('/', [Experiencias\ExperienciaController::class, 'store'])->name('experiencias.store');
+        Route::get('/{id}', [Experiencias\ExperienciaController::class, 'show'])->name('experiencias.show');
+        Route::put('/{id}', [Experiencias\ExperienciaController::class, 'update'])->name('experiencias.update');
+        Route::put('/{id}/estado', [Experiencias\ExperienciaController::class, 'cambiarEstado'])->name('experiencias.cambiarEstado');
+        Route::delete('/{id}', [Experiencias\ExperienciaController::class, 'destroy'])->name('experiencias.delete');
+    });
+
+    // Experiencia categorias
+    Route::group(["prefix" => "experiencia-categorias"], function () {
+        Route::get('/', [Experiencias\ExperienciaCategoriaController::class, 'index'])->name('experiencia-categorias.index');
+        Route::post('/', [Experiencias\ExperienciaCategoriaController::class, 'store'])->name('experiencia-categorias.store');
+        Route::delete('/{id}', [Experiencias\ExperienciaCategoriaController::class, 'destroy'])->name('experiencia-categorias.delete');
+    });
+
+    // Experiencia precios
+    Route::group(["prefix" => "experiencia-precios"], function () {
+        Route::get('/', [Experiencias\ExperienciaPrecioController::class, 'index'])->name('experiencia-precios.index');
+        Route::post('/', [Experiencias\ExperienciaPrecioController::class, 'store'])->name('experiencia-precios.store');
+        Route::get('/{id}', [Experiencias\ExperienciaPrecioController::class, 'show'])->name('experiencia-precios.show');
+        Route::put('/{id}', [Experiencias\ExperienciaPrecioController::class, 'update'])->name('experiencia-precios.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaPrecioController::class, 'destroy'])->name('experiencia-precios.delete');
+    });
+
+    // Experiencia multimedia
+    Route::group(["prefix" => "experiencia-multimedia"], function () {
+        Route::get('/', [Experiencias\ExperienciaMultimediaController::class, 'index'])->name('experiencia-multimedia.index');
+        Route::post('/', [Experiencias\ExperienciaMultimediaController::class, 'store'])->name('experiencia-multimedia.store');
+        Route::get('/{id}', [Experiencias\ExperienciaMultimediaController::class, 'show'])->name('experiencia-multimedia.show');
+        Route::put('/{id}', [Experiencias\ExperienciaMultimediaController::class, 'update'])->name('experiencia-multimedia.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaMultimediaController::class, 'destroy'])->name('experiencia-multimedia.delete');
+    });
+
+    // Experiencia caracteristicas
+    Route::group(["prefix" => "experiencia-caracteristicas"], function () {
+        Route::get('/', [Experiencias\ExperienciaCaracteristicaController::class, 'index'])->name('experiencia-caracteristicas.index');
+        Route::post('/', [Experiencias\ExperienciaCaracteristicaController::class, 'store'])->name('experiencia-caracteristicas.store');
+        Route::put('/{id}', [Experiencias\ExperienciaCaracteristicaController::class, 'update'])->name('experiencia-caracteristicas.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaCaracteristicaController::class, 'destroy'])->name('experiencia-caracteristicas.delete');
+    });
+
+    // Experiencia horarios
+    Route::group(["prefix" => "experiencia-horarios"], function () {
+        Route::get('/', [Experiencias\ExperienciaHorarioController::class, 'index'])->name('experiencia-horarios.index');
+        Route::post('/', [Experiencias\ExperienciaHorarioController::class, 'store'])->name('experiencia-horarios.store');
+        Route::get('/{id}', [Experiencias\ExperienciaHorarioController::class, 'show'])->name('experiencia-horarios.show');
+        Route::put('/{id}', [Experiencias\ExperienciaHorarioController::class, 'update'])->name('experiencia-horarios.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaHorarioController::class, 'destroy'])->name('experiencia-horarios.delete');
+    });
+
+    // Experiencia disponibilidad
+    Route::group(["prefix" => "experiencia-disponibilidad"], function () {
+        Route::get('/', [Experiencias\ExperienciaDisponibilidadController::class, 'index'])->name('experiencia-disponibilidad.index');
+        Route::post('/', [Experiencias\ExperienciaDisponibilidadController::class, 'store'])->name('experiencia-disponibilidad.store');
+        Route::get('/{id}', [Experiencias\ExperienciaDisponibilidadController::class, 'show'])->name('experiencia-disponibilidad.show');
+        Route::put('/{id}', [Experiencias\ExperienciaDisponibilidadController::class, 'update'])->name('experiencia-disponibilidad.update');
+        Route::delete('/{id}', [Experiencias\ExperienciaDisponibilidadController::class, 'destroy'])->name('experiencia-disponibilidad.delete');
+    });
+
+    // Reservas
+    Route::group(["prefix" => "reservas"], function () {
+        Route::get('/', [Reservas\ReservaController::class, 'index'])->name('reservas.index');
+        Route::post('/', [Reservas\ReservaController::class, 'store'])->name('reservas.store');
+        Route::get('/{id}', [Reservas\ReservaController::class, 'show'])->name('reservas.show');
+        Route::put('/{id}', [Reservas\ReservaController::class, 'update'])->name('reservas.update');
+        Route::put('/{id}/estado', [Reservas\ReservaController::class, 'cambiarEstado'])->name('reservas.cambiarEstado');
+        Route::delete('/{id}', [Reservas\ReservaController::class, 'destroy'])->name('reservas.delete');
+    });
+
+    // Acompanantes reserva
+    Route::group(["prefix" => "acompanantes-reserva"], function () {
+        Route::get('/', [Reservas\AcompananteReservaController::class, 'index'])->name('acompanantes-reserva.index');
+        Route::post('/', [Reservas\AcompananteReservaController::class, 'store'])->name('acompanantes-reserva.store');
+        Route::get('/{id}', [Reservas\AcompananteReservaController::class, 'show'])->name('acompanantes-reserva.show');
+        Route::put('/{id}', [Reservas\AcompananteReservaController::class, 'update'])->name('acompanantes-reserva.update');
+        Route::delete('/{id}', [Reservas\AcompananteReservaController::class, 'destroy'])->name('acompanantes-reserva.delete');
+    });
+
+    // Favoritos
+    Route::group(["prefix" => "favoritos"], function () {
+        Route::get('/', [Turismo\FavoritoController::class, 'index'])->name('favoritos.index');
+        Route::post('/', [Turismo\FavoritoController::class, 'store'])->name('favoritos.store');
+        Route::delete('/{id}', [Turismo\FavoritoController::class, 'destroy'])->name('favoritos.delete');
+    });
+
+    // Resenas
+    Route::group(["prefix" => "resenas"], function () {
+        Route::get('/', [Resenas\ResenaController::class, 'index'])->name('resenas.index');
+        Route::post('/', [Resenas\ResenaController::class, 'store'])->name('resenas.store');
+        Route::get('/{id}', [Resenas\ResenaController::class, 'show'])->name('resenas.show');
+        Route::put('/{id}', [Resenas\ResenaController::class, 'update'])->name('resenas.update');
+        Route::delete('/{id}', [Resenas\ResenaController::class, 'destroy'])->name('resenas.delete');
+    });
+
+    // Multimedia resena
+    Route::group(["prefix" => "multimedia-resena"], function () {
+        Route::get('/', [Resenas\MultimediaResenaController::class, 'index'])->name('multimedia-resena.index');
+        Route::post('/', [Resenas\MultimediaResenaController::class, 'store'])->name('multimedia-resena.store');
+        Route::delete('/{id}', [Resenas\MultimediaResenaController::class, 'destroy'])->name('multimedia-resena.delete');
+    });
+
+    // Promociones
+    Route::group(["prefix" => "promociones"], function () {
+        Route::get('/', [Promociones\PromocionController::class, 'index'])->name('promociones.index');
+        Route::post('/', [Promociones\PromocionController::class, 'store'])->name('promociones.store')->middleware('permission:CrearPromocion');
+        Route::get('/{id}', [Promociones\PromocionController::class, 'show'])->name('promociones.show');
+        Route::put('/{id}', [Promociones\PromocionController::class, 'update'])->name('promociones.update')->middleware('permission:ModificarPromocion');
+        Route::delete('/{id}', [Promociones\PromocionController::class, 'destroy'])->name('promociones.delete')->middleware('permission:EliminarPromocion');
+    });
+
+    // Promocion experiencias
+    Route::group(["prefix" => "promocion-experiencias"], function () {
+        Route::get('/', [Promociones\PromocionExperienciaController::class, 'index'])->name('promocion-experiencias.index');
+        Route::post('/', [Promociones\PromocionExperienciaController::class, 'store'])->name('promocion-experiencias.store')->middleware('permission:CrearPromocion');
+        Route::delete('/{id}', [Promociones\PromocionExperienciaController::class, 'destroy'])->name('promocion-experiencias.delete')->middleware('permission:EliminarPromocion');
+    });
+
+    // Notificaciones
+    Route::group(["prefix" => "notificaciones"], function () {
+        Route::get('/', [Turismo\NotificacionController::class, 'index'])->name('notificaciones.index');
+        Route::post('/', [Turismo\NotificacionController::class, 'store'])->name('notificaciones.store');
+        Route::put('/{id}/leida', [Turismo\NotificacionController::class, 'marcarLeida'])->name('notificaciones.marcarLeida');
+        Route::delete('/{id}', [Turismo\NotificacionController::class, 'destroy'])->name('notificaciones.delete');
+    });
 });

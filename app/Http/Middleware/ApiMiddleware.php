@@ -22,8 +22,8 @@ class ApiMiddleware
         // Si el token no es válido
         if (!$tokenIsValid) {
 
-            // Permitir que la ruta 'v1.oauth/token' pase sin validación
-            if ($request->routeIs('oauth.*')) {
+            // Permitir las rutas de oauth y las del portal público (publico.*) sin token
+            if ($request->routeIs('oauth.*') || $request->routeIs('publico.*')) {
                 return $next($request);
             }
 
