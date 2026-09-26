@@ -45,20 +45,19 @@ class ExperienciaPrecioController extends Controller
         DB::beginTransaction();
         try {
             $datos = $request->all();
-            $validator = Validator::make($datos, [
-                'experiencia_id' => 'integer|required|exists:experiencias,id',
-                'descripcion' => 'string|required|max:150',
-                'tipo' => 'string|required|max:50',
-                'cantidad' => 'integer|nullable',
-                'precio' => 'numeric|required',
-                'estado' => 'boolean|nullable',
-            ]);
+            $validator = Validator::make($datos, array_merge(
+                ['experiencia_id' => 'integer|required|exists:experiencias,id'],
+                ExperienciaPrecio::reglas()
+            ), ExperienciaPrecio::mensajes());
 
             if ($validator->fails()) {
                 return response(
                     get_response_body(format_messages_validator($validator)),
                     Response::HTTP_BAD_REQUEST
                 );
+            }
+            if ($error = ExperienciaPrecio::validarCantidadesUnicas([$datos])) {
+                return response(get_response_body([$error]), Response::HTTP_BAD_REQUEST);
             }
 
             if (!$this->experienciaEnAlcance($datos['experiencia_id'])) {
@@ -108,14 +107,10 @@ class ExperienciaPrecioController extends Controller
         try {
             $datos = $request->all();
             $datos['id'] = $id;
-            $validator = Validator::make($datos, [
-                'id' => 'integer|required|exists:experiencia_precios,id',
-                'descripcion' => 'string|required|max:150',
-                'tipo' => 'string|required|max:50',
-                'cantidad' => 'integer|nullable',
-                'precio' => 'numeric|required',
-                'estado' => 'boolean|nullable',
-            ]);
+            $validator = Validator::make($datos, array_merge(
+                ExperienciaPrecio::reglas(),
+                ['id' => 'integer|required|exists:experiencia_precios,id']
+            ), ExperienciaPrecio::mensajes());
 
             if ($validator->fails()) {
                 return response(
@@ -123,6 +118,11 @@ class ExperienciaPrecioController extends Controller
                     Response::HTTP_BAD_REQUEST
                 );
             }
+            if ($error = ExperienciaPrecio::validarCantidadesUnicas([$datos])) {
+                return response(get_response_body([$error]), Response::HTTP_BAD_REQUEST);
+            }
+            // Un precio no cambia de experiencia.
+            unset($datos['experiencia_id']);
 
             if (!$this->registroDeExperienciaEnAlcance('experiencia_precios', $id)) {
                 return $this->respuestaSinAcceso();

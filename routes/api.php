@@ -554,6 +554,7 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::get('/', [Proveedores\DocumentoProveedorController::class, 'index'])->name('documentos-proveedor.index');
         Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store')->middleware('permission:CrearProveedorTuristico');
         Route::get('/{id}', [Proveedores\DocumentoProveedorController::class, 'show'])->name('documentos-proveedor.show');
+        Route::get('/{id}/archivo', [Proveedores\DocumentoProveedorController::class, 'archivo'])->name('documentos-proveedor.archivo');
         Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update')->middleware('permission:ModificarProveedorTuristico');
         Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico');
     });

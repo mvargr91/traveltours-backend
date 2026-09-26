@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Services\ArchivosService;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Proveedores\ProveedorTuristico;
 
@@ -71,16 +72,19 @@ class ProveedorTuristicoController extends Controller
 
             if ($proveedor) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['El proveedor turístico ha sido creado.', 2], $proveedor),
                     Response::HTTP_CREATED
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar crear el proveedor turístico.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -135,16 +139,19 @@ class ProveedorTuristicoController extends Controller
             $proveedor = ProveedorTuristico::modificarOCrear($datos);
             if ($proveedor) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['El proveedor turístico ha sido modificado.', 1], $proveedor),
                     Response::HTTP_OK
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar modificar el proveedor turístico.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -170,12 +177,14 @@ class ProveedorTuristicoController extends Controller
 
             $proveedor = ProveedorTuristico::verificar($datos);
             DB::commit();
+            ArchivosService::confirmar();
             return response(
                 get_response_body(['El proveedor turístico ha sido verificado.', 1], $proveedor),
                 Response::HTTP_OK
             );
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -196,19 +205,23 @@ class ProveedorTuristicoController extends Controller
                 );
             }
 
+            ArchivosService::programarEliminacionCarpeta('proveedores', $id, ArchivosService::PRIVADO);
             $eliminado = ProveedorTuristico::eliminar($id);
             if ($eliminado) {
                 DB::commit();
+                ArchivosService::confirmar();
                 return response(
                     get_response_body(['El proveedor turístico ha sido eliminado.', 3]),
                     Response::HTTP_OK
                 );
             } else {
                 DB::rollback();
+                ArchivosService::revertir();
                 return response(get_response_body(['Ocurrió un error al intentar eliminar el proveedor turístico.']), Response::HTTP_CONFLICT);
             }
         } catch (Exception $e) {
             DB::rollback();
+            ArchivosService::revertir();
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
