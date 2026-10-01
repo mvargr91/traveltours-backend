@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
+use App\Services\WompiService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Reserva extends Model
@@ -42,6 +43,41 @@ class Reserva extends Model
         'usuario_modificacion_id',
         'usuario_modificacion_nombre',
     ];
+
+    // Mismo cálculo que el portal: precio desde × personas, menos la mejor promoción vigente.
+    // Lo usan las reservas del portal y las de clientes, para que el monto (y el pago en línea) no dependa del navegador.
+    public static function calcularTotal($experienciaId, $personas)
+    {
+        $precioDesde = DB::table('experiencias')->where('id', $experienciaId)->value('precio_desde');
+        $subtotal = (float) $precioDesde * $personas;
+        $hoy = Carbon::now()->toDateString();
+
+        $promocion = DB::table('promociones')
+            ->join('promocion_experiencia', 'promocion_experiencia.promocion_id', '=', 'promociones.id')
+            ->where('promocion_experiencia.experiencia_id', $experienciaId)
+            ->where('promociones.estado', 1)
+            ->where('promociones.fecha_inicio', '<=', $hoy)
+            ->where('promociones.fecha_fin', '>=', $hoy)
+            ->orderBy('promociones.valor_descuento', 'desc')
+            ->select('promociones.tipo_descuento', 'promociones.valor_descuento')
+            ->first();
+
+        if (!$promocion) {
+            return $subtotal;
+        }
+        $descuento = $promocion->tipo_descuento === 'porcentaje'
+            ? round($subtotal * (float) $promocion->valor_descuento / 100)
+            : min((float) $promocion->valor_descuento, $subtotal);
+
+        return $subtotal - $descuento;
+    }
+
+    // Estado con el que nace una reserva según la modalidad de la experiencia (experiencias.modalidad_pago).
+    public static function estadoInicial($experienciaId)
+    {
+        $modalidad = DB::table('experiencias')->where('id', $experienciaId)->value('modalidad_pago');
+        return $modalidad === 'pago_en_linea' ? 'pendiente_pago' : 'pendiente';
+    }
 
     public static function obtenerColeccionLigera($dto)
     {
@@ -233,6 +269,11 @@ class Reserva extends Model
 
     public static function cambiarEstado($id, $estado)
     {
+        // Una reserva pagada (Wompi) que se cancela o rechaza devuelve sus cupos a la fecha.
+        if (in_array($estado, ['cancelada', 'rechazada'], true)) {
+            WompiService::devolverCupos($id);
+        }
+
         $reserva = Reserva::find($id);
         $reservaOriginal = $reserva->toJson();
 

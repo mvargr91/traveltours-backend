@@ -50,7 +50,7 @@ class ParametroConstanteController extends Controller
             $validator = Validator::make($datos, [
                 'codigo_parametro' => 'string|required|min:1|max:128|unique:parametros_constantes,codigo_parametro',
                 'descripcion_parametro' => 'string|required|min:1|max:128',
-                'valor_parametro' => 'string|required|min:1|max:2000',
+                'valor_parametro' => 'string|nullable|max:2000',
                 'estado' => 'boolean'
             ]);
 
@@ -178,7 +178,7 @@ class ParametroConstanteController extends Controller
                 'id' => 'integer|required|exists:parametros_constantes,id',
                 'codigo_parametro' => 'string|required|min:2|max:128|unique:parametros_constantes,codigo_parametro,' . $request->id,
                 'descripcion_parametro' => 'string|required|min:2|max:128',
-                'valor_parametro' => 'string|required|min:1|max:2000',
+                'valor_parametro' => 'string|nullable|max:2000',
                 'estado' => 'boolean'
             ]);
 

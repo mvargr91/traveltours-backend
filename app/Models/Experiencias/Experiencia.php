@@ -29,6 +29,7 @@ class Experiencia extends Model
         'precio_desde',
         'duracion',
         'capacidad_maxima',
+        'modalidad_pago',
         'punto_encuentro',
         'direccion',
         'latitud',
@@ -76,6 +77,7 @@ class Experiencia extends Model
                 'experiencias.precio_desde',
                 'experiencias.duracion',
                 'experiencias.capacidad_maxima',
+                'experiencias.modalidad_pago',
                 'experiencias.punto_encuentro',
                 'experiencias.direccion',
                 'experiencias.latitud',
@@ -178,6 +180,7 @@ class Experiencia extends Model
             'precio_desde' => $experiencia->precio_desde,
             'duracion' => $experiencia->duracion,
             'capacidad_maxima' => $experiencia->capacidad_maxima,
+            'modalidad_pago' => $experiencia->modalidad_pago,
             'punto_encuentro' => $experiencia->punto_encuentro,
             'direccion' => $experiencia->direccion,
             'latitud' => $experiencia->latitud,
@@ -209,6 +212,10 @@ class Experiencia extends Model
         if (isset($usuario) || isset($dto['usuario_modificacion_id'])) {
             $dto['usuario_modificacion_id'] = $usuario->id ?? ($dto['usuario_modificacion_id'] ?? null);
             $dto['usuario_modificacion_nombre'] = $usuario->nombre ?? ($dto['usuario_modificacion_nombre'] ?? null);
+        }
+        // La columna no admite NULL: sin modalidad, la experiencia se reserva (sin pago en línea).
+        if (array_key_exists('modalidad_pago', $dto) && !$dto['modalidad_pago']) {
+            $dto['modalidad_pago'] = 'reserva';
         }
 
         $experiencia = isset($dto['id']) ? Experiencia::find($dto['id']) : new Experiencia();
@@ -313,6 +320,7 @@ class Experiencia extends Model
                 'experiencias.nombre',
                 'experiencias.slug',
                 'experiencias.precio_desde',
+                'experiencias.modalidad_pago',
                 'experiencias.duracion',
                 'experiencias.idioma',
                 'experiencias.latitud',
@@ -416,6 +424,7 @@ class Experiencia extends Model
                 'experiencias.precio_desde',
                 'experiencias.duracion',
                 'experiencias.capacidad_maxima',
+                'experiencias.modalidad_pago',
                 'experiencias.punto_encuentro',
                 'experiencias.direccion',
                 'experiencias.latitud',
