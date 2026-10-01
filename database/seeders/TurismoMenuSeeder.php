@@ -41,6 +41,10 @@ class TurismoMenuSeeder extends Seeder
             ['Cupones', '/cupones', 'confirmation_number', 'Cupon'],
             ['Promociones', '/promociones', 'local_offer', 'Promocion'],
         ]],
+        'Parametrización' => ['tune', 90, [
+            ['Parámetros', '/parametros-constantes', 'settings', 'ParametroConstante'],
+            ['Parámetros de correo', '/parametros-correo', 'mail', 'ParametroCorreo'],
+        ]],
     ];
 
     public function run()

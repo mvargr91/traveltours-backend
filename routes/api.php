@@ -43,6 +43,14 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     Route::get('/experiencias/{slug}', [Publico\PortalController::class, 'experiencia'])->name('publico.experiencia');
     Route::get('/promociones', [Publico\PortalController::class, 'promociones'])->name('publico.promociones');
     Route::post('/registro', [Publico\RegistroController::class, 'store'])->middleware('throttle:10,1,registro')->name('publico.registro');
+    // Reserva sin cuenta: crear y consultar por código + correo.
+    Route::post('/reservas', [Publico\ReservaController::class, 'store'])->middleware('throttle:5,1,reserva-invitado')->name('publico.reservas.store');
+    Route::get('/reservas/{codigo}', [Publico\ReservaController::class, 'show'])->middleware('throttle:20,1,reserva-consulta')->name('publico.reservas.show');
+    // Pago en línea con Wompi: iniciar el checkout, consultar al volver y webhook (URL de eventos).
+    Route::post('/reservas/{codigo}/pago', [Publico\PagoController::class, 'iniciar'])->middleware('throttle:10,1,pago-iniciar')->name('publico.pagos.iniciar');
+    Route::get('/pagos/transaccion/{id}', [Publico\PagoController::class, 'transaccion'])->middleware('throttle:30,1,pago-consulta')->name('publico.pagos.transaccion');
+    Route::get('/pagos/retorno', [Publico\PagoController::class, 'retorno'])->name('publico.pagos.retorno');
+    Route::post('/wompi/eventos', [Publico\PagoController::class, 'eventos'])->name('publico.wompi.eventos');
 });
 
 Route::group(['middleware' => ['auth:api']], function (){
@@ -122,7 +130,7 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::delete('/{id}', [Seguridad\PermisoController::class,'destroy'])->name('permisos.delete')->middleware('permission:EliminarAccionPermiso');
     });
 
-    // Auditoría y Parametrización no tienen permisos propios en BD: quedan solo para el administrador.
+    // Auditoría no tiene permisos propios en BD: queda solo para el administrador.
     // Auditoria Tablas
     Route::group(["prefix" => "auditoria-tablas", "middleware" => ["role:SuperSu"]],function(){
         Route::get('/', [Seguridad\AuditoriaTablaController::class,'index'])->name('auditoria-tablas.index');
@@ -131,22 +139,22 @@ Route::group(['middleware' => ['auth:api']], function (){
     // ---------------------- Parametrizacion -------------------------- //
 
     // Parametros correos
-    Route::group(["prefix" => "parametros-correo", "middleware" => ["role:SuperSu"]],function(){
-        Route::get('/', [Parametrizacion\ParametroCorreoController::class,'index'])->name('parametros_correo.index');
-        Route::post('/', [Parametrizacion\ParametroCorreoController::class,'store'])->name('parametros_correo.store');
-        Route::get('/{id}', [Parametrizacion\ParametroCorreoController::class,'show'])->name('parametros_correo.show');
-        Route::put('/{id}', [Parametrizacion\ParametroCorreoController::class,'update'])->name('parametros_correo.update');
-        Route::delete('/{id}', [Parametrizacion\ParametroCorreoController::class,'destroy'])->name('parametros_correo.delete');
+    Route::group(["prefix" => "parametros-correo"],function(){
+        Route::get('/', [Parametrizacion\ParametroCorreoController::class,'index'])->name('parametros_correo.index')->middleware('permission:ListarParametroCorreo');
+        Route::post('/', [Parametrizacion\ParametroCorreoController::class,'store'])->name('parametros_correo.store')->middleware('permission:CrearParametroCorreo');
+        Route::get('/{id}', [Parametrizacion\ParametroCorreoController::class,'show'])->name('parametros_correo.show')->middleware('permission:ListarParametroCorreo');
+        Route::put('/{id}', [Parametrizacion\ParametroCorreoController::class,'update'])->name('parametros_correo.update')->middleware('permission:ModificarParametroCorreo');
+        Route::delete('/{id}', [Parametrizacion\ParametroCorreoController::class,'destroy'])->name('parametros_correo.delete')->middleware('permission:EliminarParametroCorreo');
     });
 
     // Parametros Constantes
-    Route::group(["prefix" => "parametros-constantes", "middleware" => ["role:SuperSu"]],function(){
-        Route::get('/', [Parametrizacion\ParametroConstanteController::class,'index'])->name('parametros-constantes.index');
-        Route::post('/', [Parametrizacion\ParametroConstanteController::class,'store'])->name('parametros-constantes.store');
-        Route::get('/consultar', [Parametrizacion\ParametroConstanteController::class,'consultar'])->name('parametros-constantes.consultar');
-        Route::get('/{id}', [Parametrizacion\ParametroConstanteController::class,'show'])->name('parametros-constantes.show');
-        Route::put('/{id}', [Parametrizacion\ParametroConstanteController::class,'update'])->name('parametros-constantes.update');
-        Route::delete('/{id}', [Parametrizacion\ParametroConstanteController::class,'destroy'])->name('parametros-constantes.delete');
+    Route::group(["prefix" => "parametros-constantes"],function(){
+        Route::get('/', [Parametrizacion\ParametroConstanteController::class,'index'])->name('parametros-constantes.index')->middleware('permission:ListarParametroConstante');
+        Route::post('/', [Parametrizacion\ParametroConstanteController::class,'store'])->name('parametros-constantes.store')->middleware('permission:CrearParametroConstante');
+        Route::get('/consultar', [Parametrizacion\ParametroConstanteController::class,'consultar'])->name('parametros-constantes.consultar')->middleware('permission:ListarParametroConstante');
+        Route::get('/{id}', [Parametrizacion\ParametroConstanteController::class,'show'])->name('parametros-constantes.show')->middleware('permission:ListarParametroConstante');
+        Route::put('/{id}', [Parametrizacion\ParametroConstanteController::class,'update'])->name('parametros-constantes.update')->middleware('permission:ModificarParametroConstante');
+        Route::delete('/{id}', [Parametrizacion\ParametroConstanteController::class,'destroy'])->name('parametros-constantes.delete')->middleware('permission:EliminarParametroConstante');
     });
 
 

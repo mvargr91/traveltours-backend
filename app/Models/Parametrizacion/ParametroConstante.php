@@ -147,6 +147,11 @@ class ParametroConstante extends Model
             $dto['usuario_modificacion_nombre'] = $usuario->nombre ?? ($dto['usuario_modificacion_nombre'] ?? null);
         }
 
+        // Un parámetro puede quedar vacío (ej. CORREO_ADMIN_RESERVAS); la columna no admite NULL.
+        if (array_key_exists('valor_parametro', $dto)) {
+            $dto['valor_parametro'] = $dto['valor_parametro'] ?? '';
+        }
+
         // Consultar el servicio
         $parametro = isset($dto['id']) ? ParametroConstante::find($dto['id']) : new ParametroConstante();
 

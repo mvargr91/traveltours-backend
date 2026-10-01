@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\Reserva;
+use App\Services\NotificadorReservas;
 
 class ReservaController extends Controller
 {
@@ -81,10 +82,16 @@ class ReservaController extends Controller
                 return $this->respuestaSinAcceso();
             }
 
+            $datos['estado'] = Reserva::estadoInicial($datos['experiencia_id']);
+            // El cliente no fija el precio (con pago en línea pagaría lo que envíe el navegador).
+            if ($this->esCliente()) {
+                $datos['valor_total'] = Reserva::calcularTotal($datos['experiencia_id'], $datos['cantidad_personas']);
+            }
             $reserva = Reserva::modificarOCrear($datos);
 
             if ($reserva) {
                 DB::commit();
+                NotificadorReservas::reservaCreada($reserva['id']);
                 return response(
                     get_response_body(['La reserva ha sido creada.', 2], $reserva),
                     Response::HTTP_CREATED
@@ -179,7 +186,7 @@ class ReservaController extends Controller
             $datos['id'] = $id;
             $validator = Validator::make($datos, [
                 'id' => 'integer|required|exists:reservas,id',
-                'estado' => 'string|required|in:pendiente,aceptada,rechazada,cancelada,finalizada,no_asistio',
+                'estado' => 'string|required|in:pendiente,pendiente_pago,aceptada,rechazada,cancelada,finalizada,no_asistio',
             ]);
 
             if ($validator->fails()) {
@@ -197,8 +204,10 @@ class ReservaController extends Controller
                 return $this->respuestaSinAcceso();
             }
 
+            $estadoAnterior = DB::table('reservas')->where('id', $id)->value('estado');
             $reserva = Reserva::cambiarEstado($id, $datos['estado']);
             DB::commit();
+            NotificadorReservas::estadoCambiado($id, $estadoAnterior);
             return response(
                 get_response_body(['El estado de la reserva ha sido actualizado.', 1], $reserva),
                 Response::HTTP_OK

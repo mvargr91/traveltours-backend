@@ -61,7 +61,7 @@ class ParametroCorreoController extends Controller
            $retVal = Validator::make($datos, ['nombre' => 'string|required|max:128',
                                               'asunto' => 'string|required|max:128',
                                               'texto' => 'string|required',
-                                              'parametros' => 'string|required|max:128',
+                                              'parametros' => 'string|nullable|max:128',
                                               'estado' => 'boolean|required']);
            if ($retVal->fails())
                return response(get_response_body(format_messages_validator($retVal)), Response::HTTP_BAD_REQUEST);
@@ -126,7 +126,7 @@ class ParametroCorreoController extends Controller
                                               'nombre' => 'string|required|max:128',
                                               'asunto' => 'string|required|max:128',
                                               'texto' => 'string|required',
-                                              'parametros' => 'string|required|max:128',
+                                              'parametros' => 'string|nullable|max:128',
                                               'estado' => 'boolean|required']);
            if ($retVal->fails())
                return response(get_response_body(format_messages_validator($retVal)), Response::HTTP_BAD_REQUEST);

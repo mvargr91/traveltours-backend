@@ -28,6 +28,16 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
+    // Pasarela de pagos (pago en línea de experiencias). Sandbox: https://sandbox.wompi.co/v1
+    'wompi' => [
+        'public_key' => env('WOMPI_PUBLIC_KEY'),
+        'private_key' => env('WOMPI_PRIVATE_KEY'),
+        'integrity_secret' => env('WOMPI_INTEGRITY_SECRET'),
+        'events_secret' => env('WOMPI_EVENTS_SECRET'),
+        'api_url' => env('WOMPI_API_URL', 'https://sandbox.wompi.co/v1'),
+        'checkout_url' => 'https://checkout.wompi.co/p/',
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
