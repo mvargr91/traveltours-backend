@@ -22,7 +22,7 @@ class TurismoMenuSeeder extends Seeder
 
     private const PERMISOS = ['Crear', 'Modificar', 'Eliminar', 'Listar'];
 
-    // modulo => [icono, posicion, opciones[nombre, url, icono, entidad del permiso]]
+    // modulo => [icono, posicion, opciones[nombre, url, icono, entidad del permiso, permisos (opcional)]]
     private const MENU = [
         'Catálogo Turístico' => ['travel_explore', 10, [
             ['Destinos', '/destinos', 'place', 'Destino'],
@@ -44,6 +44,7 @@ class TurismoMenuSeeder extends Seeder
         'Parametrización' => ['tune', 90, [
             ['Parámetros', '/parametros-constantes', 'settings', 'ParametroConstante'],
             ['Parámetros de correo', '/parametros-correo', 'mail', 'ParametroCorreo'],
+            ['Apariencia', '/apariencia', 'palette', 'Apariencia', ['Listar', 'Modificar']],
         ]],
     ];
 
@@ -75,7 +76,8 @@ class TurismoMenuSeeder extends Seeder
                     ->where('aplicacion_id', $aplicacionId)
                     ->value('id');
 
-                foreach ($opciones as $posicion => [$nombreOpcion, $url, $iconoOpcion, $entidad]) {
+                foreach ($opciones as $posicion => $opcion) {
+                    [$nombreOpcion, $url, $iconoOpcion, $entidad] = $opcion;
                     DB::table('opciones_del_sistema')->updateOrInsert(
                         ['url' => $url],
                         array_merge($auditoria, [
@@ -90,7 +92,7 @@ class TurismoMenuSeeder extends Seeder
                     );
                     $opcionId = DB::table('opciones_del_sistema')->where('url', $url)->value('id');
 
-                    foreach (self::PERMISOS as $titulo) {
+                    foreach ($opcion[4] ?? self::PERMISOS as $titulo) {
                         $nombrePermiso = $titulo . $entidad;
                         DB::table('permissions')->updateOrInsert(
                             ['name' => $nombrePermiso, 'guard_name' => 'api'],
