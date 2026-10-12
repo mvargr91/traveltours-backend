@@ -48,11 +48,14 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     // Reserva sin cuenta: crear y consultar por código + correo.
     Route::post('/reservas', [Publico\ReservaController::class, 'store'])->middleware('throttle:5,1,reserva-invitado')->name('publico.reservas.store');
     Route::get('/reservas/{codigo}', [Publico\ReservaController::class, 'show'])->middleware('throttle:20,1,reserva-consulta')->name('publico.reservas.show');
-    // Pago en línea con Wompi: iniciar el checkout, consultar al volver y webhook (URL de eventos).
+    // Pago en línea: iniciar el checkout, consultar al volver, retorno y webhook de cada pasarela.
     Route::post('/reservas/{codigo}/pago', [Publico\PagoController::class, 'iniciar'])->middleware('throttle:10,1,pago-iniciar')->name('publico.pagos.iniciar');
     Route::get('/pagos/transaccion/{id}', [Publico\PagoController::class, 'transaccion'])->middleware('throttle:30,1,pago-consulta')->name('publico.pagos.transaccion');
-    Route::get('/pagos/retorno', [Publico\PagoController::class, 'retorno'])->name('publico.pagos.retorno');
-    Route::post('/wompi/eventos', [Publico\PagoController::class, 'eventos'])->name('publico.wompi.eventos');
+    Route::get('/pagos/{pasarela}/retorno', [Publico\PagoController::class, 'retorno'])->where('pasarela', 'wompi|mercadopago')->name('publico.pagos.retorno');
+    Route::post('/pagos/{pasarela}/eventos', [Publico\PagoController::class, 'eventos'])->where('pasarela', 'wompi|mercadopago')->name('publico.pagos.eventos');
+    // URLs anteriores de Wompi: la de eventos es la registrada en su panel de comercios.
+    Route::get('/pagos/retorno', [Publico\PagoController::class, 'retorno'])->defaults('pasarela', 'wompi');
+    Route::post('/wompi/eventos', [Publico\PagoController::class, 'eventos'])->defaults('pasarela', 'wompi')->name('publico.wompi.eventos');
 });
 
 Route::group(['middleware' => ['auth:api']], function (){

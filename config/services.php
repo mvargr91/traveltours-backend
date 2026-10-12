@@ -28,7 +28,19 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
-    // Pasarela de pagos (pago en línea de experiencias). Sandbox: https://sandbox.wompi.co/v1
+    // Pasarela de pagos de la instalación (pago en línea de experiencias): wompi | mercadopago.
+    'pagos' => [
+        'pasarela' => env('PAGOS_PASARELA', 'wompi'),
+    ],
+
+    // Las credenciales de prueba y de producción usan la misma API.
+    'mercadopago' => [
+        'access_token' => env('MERCADOPAGO_ACCESS_TOKEN'),
+        'webhook_secret' => env('MERCADOPAGO_WEBHOOK_SECRET'),
+        'api_url' => 'https://api.mercadopago.com',
+    ],
+
+    // Sandbox: https://sandbox.wompi.co/v1
     'wompi' => [
         'public_key' => env('WOMPI_PUBLIC_KEY'),
         'private_key' => env('WOMPI_PRIVATE_KEY'),
