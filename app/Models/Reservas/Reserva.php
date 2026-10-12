@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
-use App\Services\WompiService;
+use App\Services\PagoService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Reserva extends Model
@@ -269,9 +269,9 @@ class Reserva extends Model
 
     public static function cambiarEstado($id, $estado)
     {
-        // Una reserva pagada (Wompi) que se cancela o rechaza devuelve sus cupos a la fecha.
+        // Una reserva pagada en línea que se cancela o rechaza devuelve sus cupos a la fecha.
         if (in_array($estado, ['cancelada', 'rechazada'], true)) {
-            WompiService::devolverCupos($id);
+            PagoService::devolverCupos($id);
         }
 
         $reserva = Reserva::find($id);
