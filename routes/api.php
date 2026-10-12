@@ -42,6 +42,8 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     Route::get('/experiencias', [Publico\PortalController::class, 'experiencias'])->name('publico.experiencias');
     Route::get('/experiencias/{slug}', [Publico\PortalController::class, 'experiencia'])->name('publico.experiencia');
     Route::get('/promociones', [Publico\PortalController::class, 'promociones'])->name('publico.promociones');
+    // Colores, logos e imágenes del sitio (Parametrización > Apariencia).
+    Route::get('/apariencia', [Parametrizacion\AparienciaController::class, 'show'])->name('publico.apariencia');
     Route::post('/registro', [Publico\RegistroController::class, 'store'])->middleware('throttle:10,1,registro')->name('publico.registro');
     // Reserva sin cuenta: crear y consultar por código + correo.
     Route::post('/reservas', [Publico\ReservaController::class, 'store'])->middleware('throttle:5,1,reserva-invitado')->name('publico.reservas.store');
@@ -155,6 +157,12 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::get('/{id}', [Parametrizacion\ParametroConstanteController::class,'show'])->name('parametros-constantes.show')->middleware('permission:ListarParametroConstante');
         Route::put('/{id}', [Parametrizacion\ParametroConstanteController::class,'update'])->name('parametros-constantes.update')->middleware('permission:ModificarParametroConstante');
         Route::delete('/{id}', [Parametrizacion\ParametroConstanteController::class,'destroy'])->name('parametros-constantes.delete')->middleware('permission:EliminarParametroConstante');
+    });
+
+    // Apariencia del sitio (la lectura es pública: publico/apariencia)
+    Route::group(["prefix" => "apariencia", "middleware" => ["permission:ModificarApariencia"]],function(){
+        Route::post('/', [Parametrizacion\AparienciaController::class,'update'])->name('apariencia.update');
+        Route::delete('/', [Parametrizacion\AparienciaController::class,'restablecer'])->name('apariencia.restablecer');
     });
 
 
