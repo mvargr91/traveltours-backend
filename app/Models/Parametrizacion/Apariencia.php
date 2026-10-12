@@ -93,6 +93,11 @@ class Apariencia extends Model
             'configuracion.inicio.propuestas.*.titulo' => 'required|string|max:60',
             'configuracion.inicio.propuestas.*.texto' => 'nullable|string|max:200',
 
+            // Textos del portal por página: textos.{página}.{clave} (catálogo en TextosPortal.jsx del frontend).
+            'configuracion.textos' => 'array',
+            'configuracion.textos.*' => 'array',
+            'configuracion.textos.*.*' => 'nullable|string|max:300',
+
             'configuracion.panel' => 'array',
             'configuracion.panel.principal' => $color,
             'configuracion.panel.acento' => $color,
