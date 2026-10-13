@@ -45,6 +45,7 @@ class TurismoMenuSeeder extends Seeder
             ['Parámetros', '/parametros-constantes', 'settings', 'ParametroConstante'],
             ['Parámetros de correo', '/parametros-correo', 'mail', 'ParametroCorreo'],
             ['Apariencia', '/apariencia', 'palette', 'Apariencia', ['Listar', 'Modificar']],
+            ['Generar fechas', '/generar-fechas', 'event_repeat', 'FechasTour', ['Listar', 'Modificar']],
         ]],
     ];
 

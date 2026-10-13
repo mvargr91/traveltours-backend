@@ -5,6 +5,7 @@ namespace App\Models\Parametrizacion;
 use Exception;
 use Carbon\Carbon;
 use App\Enum\AccionAuditoriaEnum;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
@@ -58,6 +59,8 @@ class Apariencia extends Model
     {
         $color = ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'];
         $icono = ['nullable', 'string', 'regex:/^[a-z0-9_]{1,40}$/'];
+        // Enlaces que el portal pinta como href/src: solo http(s).
+        $enlace = ['nullable', 'string', 'max:300', 'regex:/^https?:\/\/\S+$/i'];
 
         return [
             'configuracion' => 'present|array',
@@ -67,6 +70,17 @@ class Apariencia extends Model
             'configuracion.marca.eslogan' => 'nullable|string|max:120',
             'configuracion.marca.descripcion' => 'nullable|string|max:300',
             'configuracion.marca.pie' => 'nullable|string|max:300',
+
+            // Contacto y redes sociales del pie de página. El WhatsApp es el parámetro WHATSAPP_NUMERO.
+            'configuracion.contacto' => 'array',
+            'configuracion.contacto.correo' => 'nullable|email|max:120',
+            'configuracion.contacto.telefono' => 'nullable|string|max:30',
+            'configuracion.contacto.direccion' => 'nullable|string|max:150',
+            'configuracion.contacto.facebook' => $enlace,
+            'configuracion.contacto.instagram' => $enlace,
+            'configuracion.contacto.tiktok' => $enlace,
+            'configuracion.contacto.youtube' => $enlace,
+            'configuracion.contacto.x' => $enlace,
 
             'configuracion.portal' => 'array',
             'configuracion.portal.primario' => $color,
@@ -87,6 +101,8 @@ class Apariencia extends Model
 
             'configuracion.inicio' => 'array',
             'configuracion.inicio.textoHero' => $color,
+            // Video de fondo del encabezado (enlace directo a un .mp4 o .webm); vacío = solo la imagen.
+            'configuracion.inicio.video' => $enlace,
             'configuracion.inicio.oscurecer' => 'numeric|between:0,0.9',
             'configuracion.inicio.propuestas' => 'array|max:6',
             'configuracion.inicio.propuestas.*.icono' => $icono,
@@ -133,10 +149,22 @@ class Apariencia extends Model
             // Objeto vacío (no arreglo) cuando aún no se ha personalizado nada.
             'configuracion' => empty($apariencia->configuracion) ? (object) [] : $apariencia->configuracion,
             'imagenes' => $imagenes,
+            'contacto' => ['whatsapp' => self::whatsapp()],
             'fecha_modificacion' => $apariencia->updated_at
                 ? (new Carbon($apariencia->updated_at))->format('Y-m-d H:i:s')
                 : null,
         ];
+    }
+
+    // Número de WhatsApp del portal: parámetro WHATSAPP_NUMERO, solo dígitos. Vacío o inactivo = sin botón.
+    private static function whatsapp()
+    {
+        $numero = DB::table('parametros_constantes')
+            ->where('codigo_parametro', 'WHATSAPP_NUMERO')
+            ->where('estado', 1)
+            ->value('valor_parametro');
+
+        return preg_replace('/\D+/', '', (string) $numero);
     }
 
     /**

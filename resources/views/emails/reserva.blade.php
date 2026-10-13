@@ -17,6 +17,12 @@
     $filas = [
         'Experiencia' => $reserva->experiencia_nombre,
         'Fecha' => $reserva->fecha . ($reserva->hora_inicio ? ' · ' . substr($reserva->hora_inicio, 0, 5) : ''),
+        // Tours de varios días: el regreso de la salida o, si no lo tiene, la duración del tour desde la fecha de salida.
+        'Regreso' => ($reserva->fecha_fin ?? null) > $reserva->fecha
+            ? $reserva->fecha_fin
+            : (($reserva->duracion_dias ?? 0) > 1
+                ? \Carbon\Carbon::parse($reserva->fecha)->addDays($reserva->duracion_dias - 1)->toDateString()
+                : null),
         'Personas' => $reserva->cantidad_personas,
         'Punto de encuentro' => $reserva->punto_encuentro,
         'Proveedor' => $verContactoCliente ? null : $reserva->proveedor_nombre,
@@ -86,6 +92,17 @@
                                 <td style="padding:12px 0 0; font-weight:bold; font-size:16px;">Total</td>
                                 <td align="right" style="padding:12px 0 0; font-weight:bold; font-size:16px;">$ {{ number_format((float) $reserva->valor_total, 0, ',', '.') }}</td>
                             </tr>
+                            {{-- Abono: lo pagado y el saldo que falta --}}
+                            @if ((float) ($reserva->valor_pagado ?? 0) > 0)
+                                <tr>
+                                    <td style="padding:6px 0 0; color:#5F6B76;">Pagado</td>
+                                    <td align="right" style="padding:6px 0 0;">$ {{ number_format((float) $reserva->valor_pagado, 0, ',', '.') }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:6px 0 0; color:#5F6B76;">Saldo pendiente</td>
+                                    <td align="right" style="padding:6px 0 0;">$ {{ number_format(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), 0, ',', '.') }}</td>
+                                </tr>
+                            @endif
                         </table>
                     </td>
                 </tr>

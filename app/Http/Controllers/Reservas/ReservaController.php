@@ -11,6 +11,7 @@ use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\Reserva;
 use App\Services\NotificadorReservas;
+use App\Services\PagoService;
 
 class ReservaController extends Controller
 {
@@ -216,6 +217,94 @@ class ReservaController extends Controller
             DB::rollback();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    // Pago recibido por fuera del portal (efectivo, transferencia, datáfono): lo registra el proveedor o el administrador.
+    public function registrarPago(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $datos = $request->all();
+            $datos['id'] = $id;
+            $validator = Validator::make($datos, [
+                'id' => 'integer|required|exists:reservas,id',
+                'valor' => 'numeric|required|gt:0',
+                'fecha_pago' => 'date_format:Y-m-d|required|before_or_equal:today',
+                'metodo_pago' => 'string|required|in:' . implode(',', PagoService::MEDIOS_MANUALES),
+                'nota' => 'string|nullable|max:255',
+            ], [
+                'valor.gt' => 'El valor del pago debe ser mayor que cero.',
+                'fecha_pago.before_or_equal' => 'La fecha del pago no puede ser futura.',
+            ]);
+
+            if ($validator->fails()) {
+                return response(
+                    get_response_body(format_messages_validator($validator)),
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+
+            // El viajero no registra sus propios pagos.
+            if ($this->esCliente() || !$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+
+            $estadoAnterior = PagoService::registrarPagoManual($id, $datos, $this->responsablePago());
+            $reserva = Reserva::cargar($id);
+            DB::commit();
+
+            // Comprobante al viajero; si con el pago quedó confirmada, va el correo de reserva confirmada (con lo pagado y el saldo).
+            $reserva['estado'] !== $estadoAnterior
+                ? NotificadorReservas::estadoCambiado($id, $estadoAnterior)
+                : NotificadorReservas::pagoRecibido($id);
+
+            return response(
+                get_response_body(['El pago ha sido registrado y se notificó al viajero.', 2], $reserva),
+                Response::HTTP_CREATED
+            );
+        } catch (Exception $e) {
+            DB::rollback();
+            return response(get_response_body([$e->getMessage()]), Response::HTTP_CONFLICT);
+        }
+    }
+
+    public function anularPago($id, $pagoId)
+    {
+        DB::beginTransaction();
+        try {
+            $validator = Validator::make(['id' => $id, 'pago_id' => $pagoId], [
+                'id' => 'integer|required|exists:reservas,id',
+                'pago_id' => 'integer|required',
+            ]);
+
+            if ($validator->fails()) {
+                return response(
+                    get_response_body(format_messages_validator($validator)),
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+
+            if ($this->esCliente() || !$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+
+            PagoService::anularPagoManual($id, $pagoId, $this->responsablePago());
+            $reserva = Reserva::cargar($id);
+            DB::commit();
+
+            return response(
+                get_response_body(['El pago ha sido anulado.', 1], $reserva),
+                Response::HTTP_OK
+            );
+        } catch (Exception $e) {
+            DB::rollback();
+            return response(get_response_body([$e->getMessage()]), Response::HTTP_CONFLICT);
+        }
+    }
+
+    private function responsablePago()
+    {
+        return auth()->user()?->usuario()?->nombre ?? 'Sistema';
     }
 
     public function destroy($id)

@@ -18,6 +18,9 @@ class Reserva extends Model
 
     protected $table = 'reservas';
 
+    // Estados en los que la reserva ocupa cupos de su fecha; en cualquier otro los libera.
+    public const ESTADOS_CON_CUPO = ['aceptada', 'finalizada', 'no_asistio'];
+
     protected $fillable = [
         'usuario_id',
         'experiencia_id',
@@ -70,6 +73,36 @@ class Reserva extends Model
             : min((float) $promocion->valor_descuento, $subtotal);
 
         return $subtotal - $descuento;
+    }
+
+    /**
+     * Anota un cambio de estado en el historial de la reserva (reserva_historial).
+     * $responsable: quién lo hizo cuando no es el usuario de la sesión (portal sin cuenta, pasarela de pagos).
+     */
+    public static function registrarHistorial($reservaId, $estadoAnterior, $estado, $responsable = null)
+    {
+        $usuario = $responsable ? null : Auth::user()?->usuario();
+
+        DB::table('reserva_historial')->insert([
+            'reserva_id' => $reservaId,
+            'estado_anterior' => $estadoAnterior,
+            'estado' => $estado,
+            'usuario_id' => $usuario->id ?? null,
+            'usuario_nombre' => $responsable ?? ($usuario->nombre ?? 'Sistema'),
+            'created_at' => now(),
+        ]);
+    }
+
+    // Cambios de estado en orden. Al viajero ($publico) no se le muestra quién hizo cada cambio.
+    public static function historial($reservaId, $publico = false)
+    {
+        $columnas = ['estado_anterior', 'estado', 'created_at as fecha'];
+
+        return DB::table('reserva_historial')
+            ->where('reserva_id', $reservaId)
+            ->orderBy('id')
+            ->select($publico ? $columnas : array_merge($columnas, ['usuario_nombre']))
+            ->get();
     }
 
     // Estado con el que nace una reserva según la modalidad de la experiencia (experiencias.modalidad_pago).
@@ -215,10 +248,13 @@ class Reserva extends Model
             'idioma' => $reserva->idioma,
             'cupon_id' => $reserva->cupon_id,
             'valor_total' => $reserva->valor_total,
+            'valor_pagado' => $reserva->valor_pagado,
+            'pagos' => PagoService::pagosDeReserva($id),
             'estado' => $reserva->estado,
             'observaciones' => $reserva->observaciones,
             'notas' => $reserva->notas,
             'acompanantes' => $acompanantes,
+            'historial' => self::historial($id),
             'usuario_creacion_id' => $reserva->usuario_creacion_id,
             'usuario_creacion_nombre' => $reserva->usuario_creacion_nombre,
             'usuario_modificacion_id' => $reserva->usuario_modificacion_id,
@@ -247,11 +283,15 @@ class Reserva extends Model
         $reserva = isset($dto['id']) ? Reserva::find($dto['id']) : new Reserva();
 
         $reservaOriginal = $reserva->toJson();
+        $estadoAnterior = $reserva->exists ? $reserva->estado : null;
 
         $reserva->fill($dto);
         $guardado = $reserva->save();
         if (!$guardado) {
             throw new Exception('Ocurrió un error al intentar guardar la reserva.');
+        }
+        if ($estadoAnterior !== $reserva->estado) {
+            self::registrarHistorial($reserva->id, $estadoAnterior, $reserva->estado);
         }
 
         $auditoriaDto = [
@@ -269,18 +309,23 @@ class Reserva extends Model
 
     public static function cambiarEstado($id, $estado)
     {
-        // Una reserva pagada en línea que se cancela o rechaza devuelve sus cupos a la fecha.
-        if (in_array($estado, ['cancelada', 'rechazada'], true)) {
-            PagoService::devolverCupos($id);
-        }
+        // Al aceptarse la reserva toma sus cupos de la fecha (si no hay suficientes, no se puede aceptar);
+        // al cancelarse, rechazarse o volver a pendiente los devuelve.
+        in_array($estado, self::ESTADOS_CON_CUPO, true)
+            ? PagoService::tomarCupos($id)
+            : PagoService::devolverCupos($id);
 
         $reserva = Reserva::find($id);
         $reservaOriginal = $reserva->toJson();
+        $estadoAnterior = $reserva->estado;
 
         $reserva->estado = $estado;
         $guardado = $reserva->save();
         if (!$guardado) {
             throw new Exception('Ocurrió un error al intentar cambiar el estado de la reserva.');
+        }
+        if ($estadoAnterior !== $estado) {
+            self::registrarHistorial($id, $estadoAnterior, $estado);
         }
 
         $auditoriaDto = [
@@ -298,6 +343,9 @@ class Reserva extends Model
 
     public static function eliminar($id)
     {
+        // Si ocupaba cupos, vuelven a la fecha.
+        PagoService::devolverCupos($id);
+
         $reserva = Reserva::find($id);
 
         $auditoriaDto = [

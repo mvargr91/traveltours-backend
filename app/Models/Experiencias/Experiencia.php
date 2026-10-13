@@ -17,6 +17,9 @@ class Experiencia extends Model
 
     protected $table = 'experiencias';
 
+    // Tipo de experiencia (experiencias.tipo): cómo se vive, aparte de la categoría. Nombres en Turismo.jsx del frontend.
+    public const TIPOS = ['grupal', 'privada', 'personalizada', 'autoguiada'];
+
     protected $fillable = [
         'proveedor_id',
         'destino_id',
@@ -24,12 +27,15 @@ class Experiencia extends Model
         'slug',
         'descripcion',
         'idioma',
+        'tipo',
         'incluye',
         'no_incluye',
         'precio_desde',
         'duracion',
+        'duracion_dias',
         'capacidad_maxima',
         'modalidad_pago',
+        'porcentaje_abono',
         'punto_encuentro',
         'direccion',
         'latitud',
@@ -72,12 +78,15 @@ class Experiencia extends Model
                 'experiencias.slug',
                 'experiencias.descripcion',
                 'experiencias.idioma',
+                'experiencias.tipo',
                 'experiencias.incluye',
                 'experiencias.no_incluye',
                 'experiencias.precio_desde',
                 'experiencias.duracion',
+                'experiencias.duracion_dias',
                 'experiencias.capacidad_maxima',
                 'experiencias.modalidad_pago',
+                'experiencias.porcentaje_abono',
                 'experiencias.punto_encuentro',
                 'experiencias.direccion',
                 'experiencias.latitud',
@@ -175,12 +184,15 @@ class Experiencia extends Model
             'slug' => $experiencia->slug,
             'descripcion' => $experiencia->descripcion,
             'idioma' => $experiencia->idioma,
+            'tipo' => $experiencia->tipo,
             'incluye' => $experiencia->incluye,
             'no_incluye' => $experiencia->no_incluye,
             'precio_desde' => $experiencia->precio_desde,
             'duracion' => $experiencia->duracion,
+            'duracion_dias' => $experiencia->duracion_dias,
             'capacidad_maxima' => $experiencia->capacidad_maxima,
             'modalidad_pago' => $experiencia->modalidad_pago,
+            'porcentaje_abono' => $experiencia->porcentaje_abono,
             'punto_encuentro' => $experiencia->punto_encuentro,
             'direccion' => $experiencia->direccion,
             'latitud' => $experiencia->latitud,
@@ -216,6 +228,10 @@ class Experiencia extends Model
         // La columna no admite NULL: sin modalidad, la experiencia se reserva (sin pago en línea).
         if (array_key_exists('modalidad_pago', $dto) && !$dto['modalidad_pago']) {
             $dto['modalidad_pago'] = 'reserva';
+        }
+        // El abono solo existe con pago en línea.
+        if (isset($dto['modalidad_pago']) && $dto['modalidad_pago'] !== 'pago_en_linea') {
+            $dto['porcentaje_abono'] = null;
         }
 
         $experiencia = isset($dto['id']) ? Experiencia::find($dto['id']) : new Experiencia();
@@ -321,8 +337,11 @@ class Experiencia extends Model
                 'experiencias.slug',
                 'experiencias.precio_desde',
                 'experiencias.modalidad_pago',
+                'experiencias.porcentaje_abono',
                 'experiencias.duracion',
+                'experiencias.duracion_dias',
                 'experiencias.idioma',
+                'experiencias.tipo',
                 'experiencias.latitud',
                 'experiencias.longitud',
                 'experiencias.destacada',
@@ -359,6 +378,42 @@ class Experiencia extends Model
         }
         if (isset($dto['destacada'])) {
             $query->where('experiencias.destacada', 1);
+        }
+        if (isset($dto['tipo'])) {
+            $query->where('experiencias.tipo', $dto['tipo']);
+        }
+        if (isset($dto['proveedor'])) {
+            $query->where('experiencias.proveedor_id', $dto['proveedor']);
+        }
+        // Mismo criterio que el distintivo del portal: la experiencia o su proveedor están verificados.
+        if (!empty($dto['verificada'])) {
+            $query->where(function ($q) {
+                $q->where('experiencias.verificada', 1)
+                    ->orWhere('proveedores_turisticos.estado_verificacion', 'aprobado');
+            });
+        }
+        // Debe incluir todas las características pedidas (ids separados por coma).
+        if (isset($dto['caracteristicas'])) {
+            foreach (array_unique(explode(',', $dto['caracteristicas'])) as $caracteristicaId) {
+                $query->whereExists(function ($q) use ($caracteristicaId) {
+                    $q->select(DB::raw(1))
+                        ->from('experiencia_caracteristica')
+                        ->whereColumn('experiencia_caracteristica.experiencia_id', 'experiencias.id')
+                        ->where('experiencia_caracteristica.caracteristica_id', (int) $caracteristicaId)
+                        ->where('experiencia_caracteristica.incluida', 1);
+                });
+            }
+        }
+        // Solo experiencias con cupos en esa fecha.
+        if (isset($dto['fecha'])) {
+            $query->whereExists(function ($q) use ($dto) {
+                $q->select(DB::raw(1))
+                    ->from('experiencia_disponibilidad')
+                    ->whereColumn('experiencia_disponibilidad.experiencia_id', 'experiencias.id')
+                    ->where('experiencia_disponibilidad.fecha', $dto['fecha'])
+                    ->where('experiencia_disponibilidad.estado', 'disponible')
+                    ->where('experiencia_disponibilidad.cupos_disponibles', '>', 0);
+            });
         }
         if (isset($dto['promocion'])) {
             $hoy = Carbon::now()->toDateString();
@@ -419,12 +474,15 @@ class Experiencia extends Model
                 'experiencias.proveedor_id',
                 'experiencias.descripcion',
                 'experiencias.idioma',
+                'experiencias.tipo',
                 'experiencias.incluye',
                 'experiencias.no_incluye',
                 'experiencias.precio_desde',
                 'experiencias.duracion',
+                'experiencias.duracion_dias',
                 'experiencias.capacidad_maxima',
                 'experiencias.modalidad_pago',
+                'experiencias.porcentaje_abono',
                 'experiencias.punto_encuentro',
                 'experiencias.direccion',
                 'experiencias.latitud',
@@ -436,6 +494,12 @@ class Experiencia extends Model
                 'proveedores_turisticos.nombre_comercial as proveedor_nombre',
                 'proveedores_turisticos.estado_verificacion as proveedor_verificacion',
                 'proveedores_turisticos.descripcion as proveedor_descripcion',
+                // Contacto y redes del proveedor, visibles en la ficha.
+                'proveedores_turisticos.telefono as proveedor_telefono',
+                'proveedores_turisticos.correo as proveedor_correo',
+                'proveedores_turisticos.sitio_web as proveedor_sitio_web',
+                'proveedores_turisticos.instagram as proveedor_instagram',
+                'proveedores_turisticos.facebook as proveedor_facebook',
             ], self::columnasTarjetaPublica()))
             ->first();
 
@@ -466,8 +530,9 @@ class Experiencia extends Model
             ->where('cupos_disponibles', '>', 0)
             ->where('fecha', '>=', $hoy)
             ->orderBy('fecha')->orderBy('hora_inicio')
-            ->limit(60)
-            ->select('id', 'fecha', 'hora_inicio', 'hora_fin', 'cupos_disponibles')
+            // Todas las fechas de la ventana que genera GeneradorDisponibilidad (el portal las pinta en un calendario).
+            ->limit(1000)
+            ->select('id', 'fecha', 'fecha_fin', 'hora_inicio', 'hora_fin', 'cupos_disponibles')
             ->get();
 
         $experiencia->categorias = DB::table('experiencia_categoria')

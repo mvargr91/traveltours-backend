@@ -255,4 +255,55 @@ class ProveedorTuristico extends Model
 
         return $proveedor->delete();
     }
+
+    // ---------------------- Portal público -------------------------- //
+
+    /**
+     * Perfil público del proveedor: datos del negocio, contacto y redes (sin NIT ni datos de auditoría)
+     * y el resumen de sus experiencias publicadas. Null si no existe o está inactivo.
+     */
+    public static function cargarPublico($id)
+    {
+        $proveedor = DB::table('proveedores_turisticos')
+            ->leftJoin('destinos', 'destinos.id', '=', 'proveedores_turisticos.destino_id')
+            ->where('proveedores_turisticos.id', $id)
+            ->where('proveedores_turisticos.estado', 1)
+            ->select(
+                'proveedores_turisticos.id',
+                'proveedores_turisticos.nombre_comercial',
+                'proveedores_turisticos.descripcion',
+                'proveedores_turisticos.telefono',
+                'proveedores_turisticos.correo',
+                'proveedores_turisticos.sitio_web',
+                'proveedores_turisticos.instagram',
+                'proveedores_turisticos.facebook',
+                'proveedores_turisticos.rnt',
+                'proveedores_turisticos.estado_verificacion',
+                'proveedores_turisticos.created_at as fecha_registro',
+                'destinos.nombre as destino_nombre',
+                'destinos.slug as destino_slug',
+            )
+            ->first();
+
+        if (!$proveedor) {
+            return null;
+        }
+
+        $proveedor->total_experiencias = DB::table('experiencias')
+            ->where('proveedor_id', $id)
+            ->where('estado', 'publicada')
+            ->count();
+
+        $resenas = DB::table('resenas')
+            ->join('experiencias', 'experiencias.id', '=', 'resenas.experiencia_id')
+            ->where('experiencias.proveedor_id', $id)
+            ->where('experiencias.estado', 'publicada')
+            ->where('resenas.estado', 'aprobada')
+            ->selectRaw('ROUND(AVG(resenas.calificacion), 1) as promedio, COUNT(*) as total')
+            ->first();
+        $proveedor->calificacion_promedio = $resenas->promedio;
+        $proveedor->total_resenas = $resenas->total;
+
+        return $proveedor;
+    }
 }

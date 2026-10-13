@@ -27,7 +27,7 @@ use function Illuminate\Support\defer;
  */
 class NotificadorReservas
 {
-    public const VARIABLES = '{nombre} {codigo} {experiencia} {fecha} {hora} {personas} {total} {proveedor}';
+    public const VARIABLES = '{nombre} {codigo} {experiencia} {fecha} {hora} {personas} {total} {pagado} {saldo} {proveedor}';
 
     // nombre => [asunto, texto HTML, título del correo]
     public const PLANTILLAS = [
@@ -65,6 +65,11 @@ class NotificadorReservas
             '¡Gracias por viajar con nosotros!',
             '<p>Tu experiencia <strong>{experiencia}</strong> ya se realizó. Esperamos que la hayas disfrutado.</p>',
             '¡Gracias por viajar con nosotros!',
+        ],
+        'RESERVA_CLIENTE_PAGO_RECIBIDO' => [
+            'Recibimos tu pago de la reserva {codigo}',
+            '<p>Registramos tu pago para <strong>{experiencia}</strong> del {fecha}.</p><p>Llevas pagado <strong>{pagado}</strong> y tu saldo pendiente es <strong>{saldo}</strong>.</p>',
+            '¡Pago recibido!',
         ],
         'RESERVA_EQUIPO_CANCELADA' => [
             'Reserva cancelada {codigo}',
@@ -133,6 +138,23 @@ class NotificadorReservas
         });
     }
 
+    // Pago del saldo (o cualquier pago que no cambia el estado): comprobante al viajero.
+    public static function pagoRecibido($reservaId)
+    {
+        self::diferir(function () use ($reservaId) {
+            $reserva = self::cargar($reservaId);
+            if (!$reserva) {
+                return;
+            }
+            self::enviar($reserva->correo, self::correo(
+                'RESERVA_CLIENTE_PAGO_RECIBIDO',
+                $reserva,
+                'Consultar mi reserva',
+                self::urlFront('/reserva?codigo=' . $reserva->codigo_reserva),
+            ));
+        });
+    }
+
     // Arma el correo con la plantilla de BD (o la de PLANTILLAS). Null si la plantilla está inactiva.
     private static function correo($nombre, $reserva, $botonTexto, $botonUrl, $paraEquipo = false)
     {
@@ -153,6 +175,8 @@ class NotificadorReservas
             '{hora}' => $reserva->hora_inicio ? substr($reserva->hora_inicio, 0, 5) : '',
             '{personas}' => $reserva->cantidad_personas,
             '{total}' => '$ ' . number_format((float) $reserva->valor_total, 0, ',', '.'),
+            '{pagado}' => '$ ' . number_format((float) $reserva->valor_pagado, 0, ',', '.'),
+            '{saldo}' => '$ ' . number_format(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), 0, ',', '.'),
             '{proveedor}' => $reserva->proveedor_nombre,
         ];
 
@@ -198,6 +222,7 @@ class NotificadorReservas
         return DB::table('reservas')
             ->join('experiencias', 'experiencias.id', '=', 'reservas.experiencia_id')
             ->join('proveedores_turisticos', 'proveedores_turisticos.id', '=', 'reservas.proveedor_id')
+            ->leftJoin('experiencia_disponibilidad', 'experiencia_disponibilidad.id', '=', 'reservas.disponibilidad_id')
             ->leftJoin('usuarios as usuario_proveedor', 'usuario_proveedor.id', '=', 'proveedores_turisticos.usuario_id')
             ->where('reservas.id', $reservaId)
             ->select(
@@ -208,11 +233,14 @@ class NotificadorReservas
                 'reservas.hora_inicio',
                 'reservas.cantidad_personas',
                 'reservas.valor_total',
+                'reservas.valor_pagado',
                 'reservas.nombre',
                 'reservas.correo',
                 'reservas.telefono',
                 'reservas.observaciones',
                 'experiencias.nombre as experiencia_nombre',
+                'experiencias.duracion_dias',
+                'experiencia_disponibilidad.fecha_fin',
                 'experiencias.punto_encuentro',
                 'proveedores_turisticos.nombre_comercial as proveedor_nombre',
                 'proveedores_turisticos.telefono as proveedor_telefono',
