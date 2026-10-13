@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\ExperienciaHorario;
+use App\Services\GeneradorDisponibilidad;
 
 class ExperienciaHorarioController extends Controller
 {
@@ -51,6 +52,8 @@ class ExperienciaHorarioController extends Controller
                 'hora_inicio' => 'date_format:H:i|required',
                 'hora_fin' => 'date_format:H:i|required|after:hora_inicio',
                 'capacidad' => 'integer|nullable',
+                'vigente_desde' => 'date_format:Y-m-d|nullable',
+                'vigente_hasta' => 'date_format:Y-m-d|nullable|after_or_equal:vigente_desde',
                 'estado' => 'boolean|nullable',
             ]);
 
@@ -66,6 +69,8 @@ class ExperienciaHorarioController extends Controller
             }
 
             $horario = ExperienciaHorario::modificarOCrear($datos);
+            // Crea de una vez las fechas de los próximos días para este horario.
+            GeneradorDisponibilidad::generar($horario->experiencia_id);
             DB::commit();
             return response(
                 get_response_body(['El horario ha sido creado.', 2], $horario),
@@ -114,6 +119,8 @@ class ExperienciaHorarioController extends Controller
                 'hora_inicio' => 'date_format:H:i|required',
                 'hora_fin' => 'date_format:H:i|required|after:hora_inicio',
                 'capacidad' => 'integer|nullable',
+                'vigente_desde' => 'date_format:Y-m-d|nullable',
+                'vigente_hasta' => 'date_format:Y-m-d|nullable|after_or_equal:vigente_desde',
                 'estado' => 'boolean|nullable',
             ]);
 
@@ -129,6 +136,8 @@ class ExperienciaHorarioController extends Controller
             }
 
             $horario = ExperienciaHorario::modificarOCrear($datos);
+            // Rehace sus fechas futuras sin reservas con el día, la hora y la capacidad nuevos.
+            GeneradorDisponibilidad::sincronizar($horario->experiencia_id, $horario->id);
             DB::commit();
             return response(
                 get_response_body(['El horario ha sido modificado.', 1], $horario),
@@ -159,6 +168,11 @@ class ExperienciaHorarioController extends Controller
             if (!$this->registroDeExperienciaEnAlcance('experiencia_horarios', $id)) {
                 return $this->respuestaSinAcceso();
             }
+
+            // Quita sus fechas futuras sin reservas; las que tienen reservas quedan como fechas sueltas.
+            $experienciaId = DB::table('experiencia_horarios')->where('id', $id)->value('experiencia_id');
+            DB::table('experiencia_horarios')->where('id', $id)->update(['estado' => 0]);
+            GeneradorDisponibilidad::sincronizar($experienciaId, $id);
 
             $eliminado = ExperienciaHorario::eliminar($id);
             if ($eliminado) {

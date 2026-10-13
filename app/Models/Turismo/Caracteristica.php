@@ -165,4 +165,22 @@ class Caracteristica extends Model
 
         return $caracteristica->delete();
     }
+
+    // Portal: características activas que alguna experiencia publicada incluye (filtro del listado).
+    public static function obtenerColeccionPublica($dto)
+    {
+        return DB::table('caracteristicas')
+            ->where('caracteristicas.estado', 1)
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('experiencia_caracteristica')
+                    ->join('experiencias', 'experiencias.id', '=', 'experiencia_caracteristica.experiencia_id')
+                    ->whereColumn('experiencia_caracteristica.caracteristica_id', 'caracteristicas.id')
+                    ->where('experiencia_caracteristica.incluida', 1)
+                    ->where('experiencias.estado', 'publicada');
+            })
+            ->select('caracteristicas.id', 'caracteristicas.nombre', 'caracteristicas.icono')
+            ->orderBy('caracteristicas.nombre')
+            ->get();
+    }
 }

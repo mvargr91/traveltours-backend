@@ -25,6 +25,7 @@ class PagoController extends Controller
             $validator = Validator::make($datos, [
                 'codigo' => 'string|required|max:30',
                 'correo' => 'email|required|max:150',
+                'concepto' => 'nullable|in:total,abono,saldo',
             ]);
             if ($validator->fails()) {
                 return response(get_response_body(format_messages_validator($validator)), Response::HTTP_BAD_REQUEST);
@@ -34,21 +35,29 @@ class PagoController extends Controller
             }
 
             $reserva = DB::table('reservas')
-                ->where('codigo_reserva', strtoupper(trim($codigo)))
-                ->whereRaw('LOWER(correo) = ?', [strtolower(trim($datos['correo']))])
-                ->select('id', 'estado', 'valor_total')
+                ->join('experiencias', 'experiencias.id', '=', 'reservas.experiencia_id')
+                ->where('reservas.codigo_reserva', strtoupper(trim($codigo)))
+                ->whereRaw('LOWER(reservas.correo) = ?', [strtolower(trim($datos['correo']))])
+                ->select('reservas.id', 'reservas.estado', 'reservas.valor_total', 'reservas.valor_pagado', 'experiencias.modalidad_pago', 'experiencias.porcentaje_abono')
                 ->first();
             if (!$reserva) {
                 return response(get_response_body(['No encontramos una reserva con ese código y correo.']), Response::HTTP_NOT_FOUND);
-            }
-            if ($reserva->estado !== 'pendiente_pago') {
-                return response(get_response_body(['Esta reserva no tiene un pago pendiente.']), Response::HTTP_CONFLICT);
             }
             if ((float) $reserva->valor_total <= 0) {
                 return response(get_response_body(['La reserva no tiene valor a pagar. Comunícate con el proveedor.']), Response::HTTP_CONFLICT);
             }
 
-            $checkout = PagoService::iniciarPago($reserva->id);
+            // Total, abono o saldo: lo que la reserva permita pagar ahora (el monto nunca viene del navegador).
+            $opciones = PagoService::opcionesDePago($reserva->estado, $reserva->valor_total, $reserva->valor_pagado, $reserva->modalidad_pago, $reserva->porcentaje_abono);
+            if (!$opciones) {
+                return response(get_response_body(['Esta reserva no tiene un pago pendiente.']), Response::HTTP_CONFLICT);
+            }
+            $concepto = $datos['concepto'] ?? (isset($opciones['total']) ? 'total' : 'saldo');
+            if (!isset($opciones[$concepto])) {
+                return response(get_response_body(['Esa forma de pago no está disponible para esta reserva.']), Response::HTTP_CONFLICT);
+            }
+
+            $checkout = PagoService::iniciarPago($reserva->id, $opciones[$concepto], $concepto);
             DB::commit();
             return response()->json($checkout, Response::HTTP_OK);
         } catch (Exception $e) {
@@ -83,6 +92,7 @@ class PagoController extends Controller
                     'reservas.hora_inicio',
                     'reservas.cantidad_personas',
                     'reservas.valor_total',
+                    'reservas.valor_pagado',
                     'experiencias.nombre as experiencia_nombre',
                     'experiencias.slug as experiencia_slug',
                 )

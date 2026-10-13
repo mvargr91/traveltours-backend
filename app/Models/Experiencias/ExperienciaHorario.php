@@ -19,6 +19,8 @@ class ExperienciaHorario extends Model
         'hora_inicio',
         'hora_fin',
         'capacidad',
+        'vigente_desde',
+        'vigente_hasta',
         'estado',
     ];
 
@@ -32,6 +34,8 @@ class ExperienciaHorario extends Model
                 'experiencia_horarios.hora_inicio',
                 'experiencia_horarios.hora_fin',
                 'experiencia_horarios.capacidad',
+                'experiencia_horarios.vigente_desde',
+                'experiencia_horarios.vigente_hasta',
                 'experiencia_horarios.estado',
             )
             ->where('experiencia_horarios.experiencia_id', $dto['experiencia_id'])

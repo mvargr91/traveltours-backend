@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\Reserva;
 use App\Models\Seguridad\AuditoriaTabla;
 use App\Services\NotificadorReservas;
+use App\Services\PagoService;
 
 /**
  * Reservas de invitados desde el portal (sin sesión).
@@ -105,6 +106,8 @@ class ReservaController extends Controller
                 'recurso_original' => $reserva->toJson(),
             ]);
 
+            Reserva::registrarHistorial($reserva->id, null, $reserva->estado, self::RESPONSABLE);
+
             DB::commit();
             NotificadorReservas::reservaCreada($reserva->id);
             return response(
@@ -156,18 +159,25 @@ class ReservaController extends Controller
         $query = DB::table('reservas')
             ->join('experiencias', 'experiencias.id', '=', 'reservas.experiencia_id')
             ->join('proveedores_turisticos', 'proveedores_turisticos.id', '=', 'reservas.proveedor_id')
+            ->leftJoin('experiencia_disponibilidad', 'experiencia_disponibilidad.id', '=', 'reservas.disponibilidad_id')
             ->where('reservas.codigo_reserva', $codigo)
             ->select(
+                'reservas.id',
                 'reservas.codigo_reserva',
                 'reservas.estado',
                 'reservas.fecha',
                 'reservas.hora_inicio',
                 'reservas.cantidad_personas',
                 'reservas.valor_total',
+                'reservas.valor_pagado',
+                'experiencias.modalidad_pago',
+                'experiencias.porcentaje_abono',
                 'reservas.nombre',
                 'reservas.correo',
                 'experiencias.nombre as experiencia_nombre',
                 'experiencias.slug as experiencia_slug',
+                'experiencias.duracion_dias',
+                'experiencia_disponibilidad.fecha_fin',
                 'experiencias.punto_encuentro',
                 'proveedores_turisticos.nombre_comercial as proveedor_nombre',
                 'proveedores_turisticos.telefono as proveedor_telefono',
@@ -178,6 +188,16 @@ class ReservaController extends Controller
             $query->whereRaw('LOWER(reservas.correo) = ?', [strtolower(trim($correo))]);
         }
 
-        return $query->first();
+        $reserva = $query->first();
+        if ($reserva) {
+            $reserva->historial = Reserva::historial($reserva->id, true);
+            // Qué puede pagar en línea ahora: [concepto => monto] (total, abono o saldo).
+            $reserva->opciones_pago = (object) PagoService::opcionesDePago($reserva->estado, $reserva->valor_total, $reserva->valor_pagado, $reserva->modalidad_pago, $reserva->porcentaje_abono);
+            $reserva->saldo = max(0, round((float) $reserva->valor_total - (float) $reserva->valor_pagado, 2));
+            $reserva->pagos = PagoService::pagosDeReserva($reserva->id, true);
+            unset($reserva->id); // el id interno no sale al portal
+        }
+
+        return $reserva;
     }
 }
