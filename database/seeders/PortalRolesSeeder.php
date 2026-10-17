@@ -23,6 +23,14 @@ class PortalRolesSeeder extends Seeder
         'Mi Cuenta' => ['account_circle', 1, [
             ['Mis Reservas', '/mis-reservas', 'event_note', 'MiReserva', ['Listar', 'Modificar']],
             ['Mis Favoritos', '/mis-favoritos', 'favorite', 'MiFavorito', ['Listar', 'Eliminar']],
+            ['Mis Reseñas', '/mis-resenas', 'rate_review', 'MiResena', ['Listar', 'Crear', 'Modificar', 'Eliminar']],
+        ]],
+    ];
+
+    // Opciones exclusivas del proveedor (mismo formato).
+    private const MENU_PROVEEDOR = [
+        'Mi Cuenta' => ['account_circle', 1, [
+            ['Mis Documentos', '/mis-documentos', 'description', 'MiDocumento', ['Listar', 'Crear', 'Modificar', 'Eliminar']],
         ]],
     ];
 
@@ -30,6 +38,7 @@ class PortalRolesSeeder extends Seeder
     private const PERMISOS_PROVEEDOR = [
         'ListarExperiencia', 'CrearExperiencia', 'ModificarExperiencia',
         'ListarReserva', 'ModificarReserva',
+        'ListarResena', 'ListarDashboard',
     ];
 
     public function run()
@@ -55,7 +64,15 @@ class PortalRolesSeeder extends Seeder
                 'usuario_modificacion_nombre' => 'SuperUser',
             ];
 
-            foreach (self::MENU_CLIENTE as $nombreModulo => [$iconoModulo, $posicionModulo, $opciones]) {
+            // Cada menú se concede a su rol.
+            $opcionesPorModulo = [];
+            foreach ([[self::MENU_CLIENTE, $clienteRolId], [self::MENU_PROVEEDOR, $proveedorRolId]] as [$menu, $rolId]) {
+                foreach ($menu as $nombreModulo => [$iconoModulo, $posicionModulo, $opciones]) {
+                    $opcionesPorModulo[] = [$nombreModulo, $iconoModulo, $posicionModulo, $opciones, $rolId];
+                }
+            }
+
+            foreach ($opcionesPorModulo as [$nombreModulo, $iconoModulo, $posicionModulo, $opciones, $rolId]) {
                 DB::table('modulos')->updateOrInsert(
                     ['nombre' => $nombreModulo, 'aplicacion_id' => $aplicacionId],
                     array_merge($auditoria, [
@@ -99,7 +116,7 @@ class PortalRolesSeeder extends Seeder
                             ]
                         );
                         $permisoId = DB::table('permissions')->where('name', $nombrePermiso)->where('guard_name', 'api')->value('id');
-                        DB::table('role_has_permissions')->insertOrIgnore(['permission_id' => $permisoId, 'role_id' => $clienteRolId]);
+                        DB::table('role_has_permissions')->insertOrIgnore(['permission_id' => $permisoId, 'role_id' => $rolId]);
                     }
                 }
             }

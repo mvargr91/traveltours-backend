@@ -26,7 +26,8 @@ class CuentaController extends Controller
 {
     private const CAMPOS_PROVEEDOR = [
         'nombre_comercial', 'razon_social', 'nit', 'descripcion', 'telefono', 'correo',
-        'direccion', 'destino_id', 'sitio_web', 'instagram', 'facebook', 'rnt',
+        'direccion', 'destino_id', 'sitio_web', 'instagram', 'facebook', 'rnt', 'tipo_servicio',
+        'banco', 'tipo_cuenta', 'numero_cuenta', 'titular_cuenta', 'documento_titular',
     ];
 
     public function show()
@@ -154,10 +155,10 @@ class CuentaController extends Controller
             'instagram' => 'nullable|string|max:255',
             'facebook' => 'nullable|string|max:255',
             'rnt' => 'nullable|string|max:50',
-        ], [
+        ] + ProveedorTuristico::reglasRegistro(), [
             'sitio_web.url' => 'El sitio web debe ser una URL válida (https://...).',
             'correo.email' => 'El correo de contacto no es válido.',
-        ]);
+        ] + ProveedorTuristico::MENSAJES_REGISTRO);
         if ($validator->fails()) {
             return response(get_response_body(format_messages_validator($validator)), Response::HTTP_BAD_REQUEST);
         }
@@ -170,6 +171,9 @@ class CuentaController extends Controller
                 'usuario_modificacion_nombre' => $usuario->nombre,
                 'updated_at' => now(),
             ]));
+            if ($request->has('categorias')) {
+                ProveedorTuristico::sincronizarCategorias($proveedor->id, $request->input('categorias') ?? []);
+            }
 
             AuditoriaTabla::crear([
                 'id_recurso' => $proveedor->id,
@@ -206,10 +210,15 @@ class CuentaController extends Controller
                     'proveedores_turisticos.estado_verificacion',
                     'proveedores_turisticos.observaciones_verificacion',
                     'proveedores_turisticos.verificado_en',
+                    'proveedores_turisticos.logo',
                     'destinos.nombre AS destino',
                 ]
             ))
             ->first();
+        if ($proveedor) {
+            $proveedor->categorias = ProveedorTuristico::categoriasDe($proveedor->id);
+            $proveedor->fotos = ProveedorTuristico::fotosDe($proveedor->id);
+        }
 
         return [
             'id' => $usuario->id,

@@ -69,6 +69,11 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::put('/', [Seguridad\CuentaController::class, 'update'])->name('cuenta.update');
         Route::put('/clave', [Seguridad\CuentaController::class, 'cambiarClave'])->middleware('throttle:10,1,cuenta-clave')->name('cuenta.clave');
         Route::put('/proveedor', [Seguridad\CuentaController::class, 'actualizarProveedor'])->name('cuenta.proveedor');
+        // Logo y fotos del negocio del propio proveedor (el negocio sale del token).
+        Route::post('/proveedor/logo', [Proveedores\ProveedorFotoController::class, 'subirLogo'])->name('cuenta.proveedor.logo');
+        Route::delete('/proveedor/logo', [Proveedores\ProveedorFotoController::class, 'eliminarLogo'])->name('cuenta.proveedor.logo.delete');
+        Route::post('/proveedor/fotos', [Proveedores\ProveedorFotoController::class, 'subirFoto'])->name('cuenta.proveedor.fotos');
+        Route::delete('/proveedor/fotos/{fotoId}', [Proveedores\ProveedorFotoController::class, 'eliminarFoto'])->whereNumber('fotoId')->name('cuenta.proveedor.fotos.delete');
     });
 
     // ---------------------- Seguridad -------------------------- //
@@ -175,6 +180,10 @@ Route::group(['middleware' => ['auth:api']], function (){
     // le cierra el API. Las lecturas admiten además los permisos de las pantallas que usan ese listado en sus
     // formularios. Dentro de lo permitido, AlcancePorRol limita a proveedor y cliente a sus propios registros.
 
+    // Inicio: dashboard (administración y proveedor, cada uno con su alcance) y reportes.
+    Route::get('/dashboard', [Turismo\DashboardController::class, 'index'])->name('dashboard.index')->middleware('permission:ListarDashboard');
+    Route::get('/reportes', [Turismo\ReporteController::class, 'index'])->name('reportes.index')->middleware('permission:ListarReporte');
+
     // Destinos
     Route::group(["prefix" => "destinos"], function () {
         Route::get('/', [Turismo\DestinoController::class, 'index'])->name('destinos.index')->middleware('permission:ListarDestino|ListarExperiencia|ListarProveedorTuristico');
@@ -209,17 +218,21 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::get('/{id}', [Proveedores\ProveedorTuristicoController::class, 'show'])->name('proveedores-turisticos.show')->middleware('permission:ListarProveedorTuristico|ListarExperiencia|ListarReserva');
         Route::put('/{id}', [Proveedores\ProveedorTuristicoController::class, 'update'])->name('proveedores-turisticos.update')->middleware('permission:ModificarProveedorTuristico');
         Route::put('/{id}/verificar', [Proveedores\ProveedorTuristicoController::class, 'verificar'])->name('proveedores-turisticos.verificar')->middleware('permission:ModificarProveedorTuristico');
+        Route::post('/{id}/logo', [Proveedores\ProveedorFotoController::class, 'subirLogo'])->whereNumber('id')->name('proveedores-turisticos.logo')->middleware('permission:ModificarProveedorTuristico');
+        Route::delete('/{id}/logo', [Proveedores\ProveedorFotoController::class, 'eliminarLogo'])->whereNumber('id')->name('proveedores-turisticos.logo.delete')->middleware('permission:ModificarProveedorTuristico');
+        Route::post('/{id}/fotos', [Proveedores\ProveedorFotoController::class, 'subirFoto'])->whereNumber('id')->name('proveedores-turisticos.fotos')->middleware('permission:ModificarProveedorTuristico');
+        Route::delete('/{id}/fotos/{fotoId}', [Proveedores\ProveedorFotoController::class, 'eliminarFotoDeProveedor'])->whereNumber('id')->name('proveedores-turisticos.fotos.delete')->middleware('permission:ModificarProveedorTuristico');
         Route::delete('/{id}', [Proveedores\ProveedorTuristicoController::class, 'destroy'])->name('proveedores-turisticos.delete')->middleware('permission:EliminarProveedorTuristico');
     });
 
-    // Documentos proveedor
+    // Documentos proveedor (también el proveedor sobre los suyos: Mi Cuenta > Mis Documentos)
     Route::group(["prefix" => "documentos-proveedor"], function () {
-        Route::get('/', [Proveedores\DocumentoProveedorController::class, 'index'])->name('documentos-proveedor.index')->middleware('permission:ListarProveedorTuristico');
-        Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store')->middleware('permission:CrearProveedorTuristico');
-        Route::get('/{id}', [Proveedores\DocumentoProveedorController::class, 'show'])->name('documentos-proveedor.show')->middleware('permission:ListarProveedorTuristico');
-        Route::get('/{id}/archivo', [Proveedores\DocumentoProveedorController::class, 'archivo'])->name('documentos-proveedor.archivo')->middleware('permission:ListarProveedorTuristico');
-        Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update')->middleware('permission:ModificarProveedorTuristico');
-        Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico');
+        Route::get('/', [Proveedores\DocumentoProveedorController::class, 'index'])->name('documentos-proveedor.index')->middleware('permission:ListarProveedorTuristico|ListarMiDocumento');
+        Route::post('/', [Proveedores\DocumentoProveedorController::class, 'store'])->name('documentos-proveedor.store')->middleware('permission:CrearProveedorTuristico|CrearMiDocumento');
+        Route::get('/{id}', [Proveedores\DocumentoProveedorController::class, 'show'])->name('documentos-proveedor.show')->middleware('permission:ListarProveedorTuristico|ListarMiDocumento');
+        Route::get('/{id}/archivo', [Proveedores\DocumentoProveedorController::class, 'archivo'])->name('documentos-proveedor.archivo')->middleware('permission:ListarProveedorTuristico|ListarMiDocumento');
+        Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update')->middleware('permission:ModificarProveedorTuristico|ModificarMiDocumento');
+        Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico|EliminarMiDocumento');
     });
 
     // Cupones
@@ -306,7 +319,9 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::put('/{id}/estado', [Reservas\ReservaController::class, 'cambiarEstado'])->name('reservas.cambiarEstado')->middleware('permission:ModificarReserva|ModificarMiReserva');
         // Pagos recibidos por fuera del portal (los registra el proveedor o el administrador).
         Route::post('/{id}/pagos', [Reservas\ReservaController::class, 'registrarPago'])->name('reservas.pagos.registrar')->middleware('permission:ModificarReserva');
-        Route::put('/{id}/pagos/{pagoId}/anular', [Reservas\ReservaController::class, 'anularPago'])->name('reservas.pagos.anular')->middleware('permission:ModificarReserva');
+        Route::put('/{id}/pagos/{pagoId}/anular', [Reservas\ReservaController::class, 'anularPago'])->name('reservas.pagos.anular')->middleware('permission:ModificarReserva|ReembolsarReserva');
+        // Dinero devuelto al viajero por fuera del portal: solo administración.
+        Route::post('/{id}/reembolsos', [Reservas\ReservaController::class, 'registrarReembolso'])->name('reservas.reembolsos.registrar')->middleware('permission:ReembolsarReserva');
         Route::delete('/{id}', [Reservas\ReservaController::class, 'destroy'])->name('reservas.delete')->middleware('permission:EliminarReserva');
     });
 
@@ -326,13 +341,13 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::delete('/{id}', [Turismo\FavoritoController::class, 'destroy'])->name('favoritos.delete')->middleware('permission:EliminarMiFavorito');
     });
 
-    // Resenas
+    // Resenas (moderación; el cliente las suyas en Mi Cuenta > Mis Reseñas; el proveedor consulta las de sus experiencias)
     Route::group(["prefix" => "resenas"], function () {
-        Route::get('/', [Resenas\ResenaController::class, 'index'])->name('resenas.index')->middleware('permission:ListarResena');
-        Route::post('/', [Resenas\ResenaController::class, 'store'])->name('resenas.store')->middleware('permission:CrearResena');
-        Route::get('/{id}', [Resenas\ResenaController::class, 'show'])->name('resenas.show')->middleware('permission:ListarResena');
-        Route::put('/{id}', [Resenas\ResenaController::class, 'update'])->name('resenas.update')->middleware('permission:ModificarResena');
-        Route::delete('/{id}', [Resenas\ResenaController::class, 'destroy'])->name('resenas.delete')->middleware('permission:EliminarResena');
+        Route::get('/', [Resenas\ResenaController::class, 'index'])->name('resenas.index')->middleware('permission:ListarResena|ListarMiResena');
+        Route::post('/', [Resenas\ResenaController::class, 'store'])->name('resenas.store')->middleware('permission:CrearResena|CrearMiResena');
+        Route::get('/{id}', [Resenas\ResenaController::class, 'show'])->name('resenas.show')->middleware('permission:ListarResena|ListarMiResena');
+        Route::put('/{id}', [Resenas\ResenaController::class, 'update'])->name('resenas.update')->middleware('permission:ModificarResena|ModificarMiResena');
+        Route::delete('/{id}', [Resenas\ResenaController::class, 'destroy'])->name('resenas.delete')->middleware('permission:EliminarResena|EliminarMiResena');
     });
 
     // Multimedia resena

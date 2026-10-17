@@ -40,6 +40,8 @@ class PagoService
     public const MEDIOS_MANUALES = ['efectivo', 'transferencia', 'datafono', 'otro'];
     // Estados de la reserva en los que se le puede registrar un pago manual.
     private const ESTADOS_CON_PAGO_MANUAL = ['pendiente', 'pendiente_pago', 'aceptada', 'finalizada', 'no_asistio'];
+    // Dinero devuelto al viajero (lo registra el administrador): va en `pagos` con este concepto y no suma a lo pagado.
+    public const REEMBOLSO = 'reembolso';
 
     // Pasarela indicada o, sin nombre, la activa de la instalación.
     public static function pasarela($nombre = null): PasarelaPago
@@ -315,6 +317,10 @@ class PagoService
         if ($pago->estado !== 'aprobado') {
             throw new \Exception('Ese pago ya está anulado.');
         }
+        if ($pago->concepto !== self::REEMBOLSO
+            && round((float) $reserva->valor_pagado - $pago->monto_centavos / 100, 2) < (float) $reserva->valor_reembolsado) {
+            throw new \Exception('No se puede anular: lo pagado quedaría por debajo de lo ya reembolsado. Anula primero el reembolso.');
+        }
 
         DB::table('pagos')->where('id', $pago->id)->update([
             'estado' => 'anulado',
@@ -325,13 +331,56 @@ class PagoService
         self::recalcularPagado($reserva, $responsable);
     }
 
-    // reservas.valor_pagado = suma de los pagos aprobados (en línea y manuales).
+    /**
+     * Reembolso manual: el administrador ya devolvió el dinero por fuera del portal (transferencia, efectivo…)
+     * y lo deja registrado. No puede superar lo pagado menos lo ya reembolsado. No cambia el estado ni los
+     * cupos de la reserva (eso lo hace la cancelación). Se anula con anularPagoManual() como cualquier pago manual.
+     */
+    public static function registrarReembolso($reservaId, array $datos, $responsable)
+    {
+        $reserva = DB::table('reservas')->where('id', $reservaId)->lockForUpdate()->first();
+        $disponible = round((float) $reserva->valor_pagado - (float) $reserva->valor_reembolsado, 2);
+        $valor = round((float) $datos['valor'], 2);
+        if ($disponible <= 0) {
+            throw new \Exception('Esta reserva no tiene pagos por reembolsar.');
+        }
+        if ($valor > $disponible) {
+            throw new \Exception('El reembolso supera lo pagado por el viajero ($ ' . number_format($disponible, 0, ',', '.') . ').');
+        }
+
+        DB::table('pagos')->insert([
+            'reserva_id' => $reserva->id,
+            'pasarela' => self::MANUAL,
+            'concepto' => self::REEMBOLSO,
+            'referencia' => $reserva->codigo_reserva . '-R' . strtoupper(Str::random(6)),
+            'monto_centavos' => (int) round($valor * 100),
+            'moneda' => 'COP',
+            'estado' => 'aprobado',
+            'metodo_pago' => $datos['metodo_pago'],
+            'fecha_pago' => $datos['fecha_pago'],
+            'nota' => $datos['nota'] ?? null,
+            'registrado_por' => $responsable,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        self::recalcularPagado($reserva, $responsable);
+    }
+
+    public static function esReembolso($reservaId, $pagoId)
+    {
+        return DB::table('pagos')->where('id', $pagoId)->where('reserva_id', $reservaId)->value('concepto') === self::REEMBOLSO;
+    }
+
+    // reservas.valor_pagado = suma de los pagos aprobados (en línea y manuales); valor_reembolsado = suma de los reembolsos.
     private static function recalcularPagado($reserva, $responsable)
     {
         $original = json_encode($reserva);
-        $centavos = DB::table('pagos')->where('reserva_id', $reserva->id)->where('estado', 'aprobado')->sum('monto_centavos');
+        $aprobados = DB::table('pagos')->where('reserva_id', $reserva->id)->where('estado', 'aprobado');
+        $centavos = (clone $aprobados)->where('concepto', '<>', self::REEMBOLSO)->sum('monto_centavos');
+        $reembolsados = (clone $aprobados)->where('concepto', self::REEMBOLSO)->sum('monto_centavos');
         DB::table('reservas')->where('id', $reserva->id)->update([
             'valor_pagado' => round($centavos / 100, 2),
+            'valor_reembolsado' => round($reembolsados / 100, 2),
             'updated_at' => now(),
         ]);
 

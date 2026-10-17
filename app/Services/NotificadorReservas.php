@@ -27,7 +27,7 @@ use function Illuminate\Support\defer;
  */
 class NotificadorReservas
 {
-    public const VARIABLES = '{nombre} {codigo} {experiencia} {fecha} {hora} {personas} {total} {pagado} {saldo} {proveedor}';
+    public const VARIABLES = '{nombre} {codigo} {experiencia} {fecha} {hora} {personas} {total} {pagado} {saldo} {reembolsado} {proveedor}';
 
     // nombre => [asunto, texto HTML, título del correo]
     public const PLANTILLAS = [
@@ -70,6 +70,11 @@ class NotificadorReservas
             'Recibimos tu pago de la reserva {codigo}',
             '<p>Registramos tu pago para <strong>{experiencia}</strong> del {fecha}.</p><p>Llevas pagado <strong>{pagado}</strong> y tu saldo pendiente es <strong>{saldo}</strong>.</p>',
             '¡Pago recibido!',
+        ],
+        'RESERVA_CLIENTE_REEMBOLSO' => [
+            'Te devolvimos dinero de la reserva {codigo}',
+            '<p>Registramos un reembolso de tu reserva para <strong>{experiencia}</strong> del {fecha}.</p><p>En total te hemos reembolsado <strong>{reembolsado}</strong>. Según tu banco, el dinero puede tardar algunos días en verse reflejado.</p>',
+            'Reembolso registrado',
         ],
         'RESERVA_EQUIPO_CANCELADA' => [
             'Reserva cancelada {codigo}',
@@ -155,6 +160,23 @@ class NotificadorReservas
         });
     }
 
+    // Reembolso manual registrado por el administrador: aviso al viajero.
+    public static function reembolsoRegistrado($reservaId)
+    {
+        self::diferir(function () use ($reservaId) {
+            $reserva = self::cargar($reservaId);
+            if (!$reserva) {
+                return;
+            }
+            self::enviar($reserva->correo, self::correo(
+                'RESERVA_CLIENTE_REEMBOLSO',
+                $reserva,
+                'Consultar mi reserva',
+                self::urlFront('/reserva?codigo=' . $reserva->codigo_reserva),
+            ));
+        });
+    }
+
     // Arma el correo con la plantilla de BD (o la de PLANTILLAS). Null si la plantilla está inactiva.
     private static function correo($nombre, $reserva, $botonTexto, $botonUrl, $paraEquipo = false)
     {
@@ -177,6 +199,7 @@ class NotificadorReservas
             '{total}' => '$ ' . number_format((float) $reserva->valor_total, 0, ',', '.'),
             '{pagado}' => '$ ' . number_format((float) $reserva->valor_pagado, 0, ',', '.'),
             '{saldo}' => '$ ' . number_format(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), 0, ',', '.'),
+            '{reembolsado}' => '$ ' . number_format((float) $reserva->valor_reembolsado, 0, ',', '.'),
             '{proveedor}' => $reserva->proveedor_nombre,
         ];
 
@@ -234,6 +257,7 @@ class NotificadorReservas
                 'reservas.cantidad_personas',
                 'reservas.valor_total',
                 'reservas.valor_pagado',
+                'reservas.valor_reembolsado',
                 'reservas.nombre',
                 'reservas.correo',
                 'reservas.telefono',

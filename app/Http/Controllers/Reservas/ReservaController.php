@@ -268,6 +268,50 @@ class ReservaController extends Controller
         }
     }
 
+    // Reembolso manual: el administrador ya devolvió el dinero y lo registra. Ruta con permiso ReembolsarReserva.
+    public function registrarReembolso(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $datos = $request->all();
+            $datos['id'] = $id;
+            $validator = Validator::make($datos, [
+                'id' => 'integer|required|exists:reservas,id',
+                'valor' => 'numeric|required|gt:0',
+                'fecha_pago' => 'date_format:Y-m-d|required|before_or_equal:today',
+                'metodo_pago' => 'string|required|in:' . implode(',', PagoService::MEDIOS_MANUALES),
+                'nota' => 'string|nullable|max:255',
+            ], [
+                'valor.gt' => 'El valor del reembolso debe ser mayor que cero.',
+                'fecha_pago.before_or_equal' => 'La fecha del reembolso no puede ser futura.',
+            ]);
+
+            if ($validator->fails()) {
+                return response(
+                    get_response_body(format_messages_validator($validator)),
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+
+            if ($this->esCliente() || !$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+
+            PagoService::registrarReembolso($id, $datos, $this->responsablePago());
+            $reserva = Reserva::cargar($id);
+            DB::commit();
+            NotificadorReservas::reembolsoRegistrado($id);
+
+            return response(
+                get_response_body(['El reembolso ha sido registrado y se notificó al viajero.', 2], $reserva),
+                Response::HTTP_CREATED
+            );
+        } catch (Exception $e) {
+            DB::rollback();
+            return response(get_response_body([$e->getMessage()]), Response::HTTP_CONFLICT);
+        }
+    }
+
     public function anularPago($id, $pagoId)
     {
         DB::beginTransaction();
@@ -285,6 +329,10 @@ class ReservaController extends Controller
             }
 
             if ($this->esCliente() || !$this->reservaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+            // Un reembolso solo lo anula quien puede registrarlos.
+            if (PagoService::esReembolso($id, $pagoId) && !auth()->user()->checkPermissionTo('ReembolsarReserva', 'api')) {
                 return $this->respuestaSinAcceso();
             }
 

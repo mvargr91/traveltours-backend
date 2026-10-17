@@ -34,12 +34,18 @@ class Resena extends Model
     {
         $query = DB::table('resenas')
             ->join('experiencias', 'experiencias.id', '=', 'resenas.experiencia_id')
+            ->leftJoin('usuarios', 'usuarios.id', '=', 'resenas.usuario_id')
+            ->leftJoin('reservas', 'reservas.id', '=', 'resenas.reserva_id')
             ->select(
                 'resenas.id',
                 'resenas.usuario_id',
+                'usuarios.nombre as usuario_nombre',
                 'resenas.experiencia_id',
                 'experiencias.nombre as experiencia_nombre',
+                'experiencias.slug as experiencia_slug',
                 'resenas.reserva_id',
+                'reservas.codigo_reserva',
+                'reservas.fecha as fecha_reserva',
                 'resenas.calificacion',
                 'resenas.comentario',
                 'resenas.estado',
@@ -56,6 +62,12 @@ class Resena extends Model
         }
         if (isset($dto['usuario_id'])) {
             $query->where('resenas.usuario_id', $dto['usuario_id']);
+        }
+        if (isset($dto['proveedor_id'])) {
+            $query->where('experiencias.proveedor_id', $dto['proveedor_id']);
+        }
+        if (isset($dto['calificacion'])) {
+            $query->where('resenas.calificacion', $dto['calificacion']);
         }
         if (isset($dto['estado'])) {
             $query->where('resenas.estado', $dto['estado']);
@@ -105,7 +117,9 @@ class Resena extends Model
         return [
             'id' => $resena->id,
             'usuario_id' => $resena->usuario_id,
+            'usuario_nombre' => DB::table('usuarios')->where('id', $resena->usuario_id)->value('nombre'),
             'experiencia_id' => $resena->experiencia_id,
+            'experiencia_nombre' => DB::table('experiencias')->where('id', $resena->experiencia_id)->value('nombre'),
             'reserva_id' => $resena->reserva_id,
             'calificacion' => $resena->calificacion,
             'comentario' => $resena->comentario,

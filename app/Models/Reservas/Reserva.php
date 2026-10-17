@@ -20,6 +20,8 @@ class Reserva extends Model
 
     // Estados en los que la reserva ocupa cupos de su fecha; en cualquier otro los libera.
     public const ESTADOS_CON_CUPO = ['aceptada', 'finalizada', 'no_asistio'];
+    // Estados de una reserva que aún no ha ocurrido ni se ha cerrado.
+    public const ESTADOS_VIGENTES = ['pendiente', 'pendiente_pago', 'aceptada'];
 
     protected $fillable = [
         'usuario_id',
@@ -150,6 +152,8 @@ class Reserva extends Model
                 'reservas.idioma',
                 'reservas.cupon_id',
                 'reservas.valor_total',
+                'reservas.valor_pagado',
+                'reservas.valor_reembolsado',
                 'reservas.estado',
                 'reservas.observaciones',
                 'reservas.notas',
@@ -159,6 +163,11 @@ class Reserva extends Model
                 'reservas.usuario_modificacion_nombre',
                 'reservas.created_at as fecha_creacion',
                 'reservas.updated_at as fecha_modificacion',
+            )
+            // Reseña que dejó el viajero (Mis Reservas ofrece calificar las finalizadas que no la tienen).
+            ->selectSub(
+                DB::table('resenas')->whereColumn('resenas.reserva_id', 'reservas.id')->select('resenas.id')->limit(1),
+                'resena_id'
             );
 
         if (isset($dto['nombre'])) {
@@ -176,8 +185,18 @@ class Reserva extends Model
         if (isset($dto['estado'])) {
             $query->where('reservas.estado', $dto['estado']);
         }
+        // Próximas: las que siguen vigentes desde hoy (más cercana primero). Pasadas: ya ocurrieron o se cerraron.
+        $hoy = Carbon::now()->toDateString();
+        $periodoProximas = ($dto['periodo'] ?? null) === 'proximas';
+        if ($periodoProximas) {
+            $query->where('reservas.fecha', '>=', $hoy)->whereIn('reservas.estado', self::ESTADOS_VIGENTES);
+        } elseif (($dto['periodo'] ?? null) === 'pasadas') {
+            $query->where(fn ($q) => $q->where('reservas.fecha', '<', $hoy)->orWhereNotIn('reservas.estado', self::ESTADOS_VIGENTES));
+        }
 
-        if (isset($dto['ordenar_por']) && count($dto['ordenar_por']) > 0) {
+        if ($periodoProximas && empty($dto['ordenar_por'])) {
+            $query->orderBy('reservas.fecha', 'asc')->orderBy('reservas.hora_inicio', 'asc');
+        } elseif (isset($dto['ordenar_por']) && count($dto['ordenar_por']) > 0) {
             foreach ($dto['ordenar_por'] as $attribute => $value) {
                 if ($attribute == 'codigo_reserva') {
                     $query->orderBy('reservas.codigo_reserva', $value);
@@ -249,6 +268,7 @@ class Reserva extends Model
             'cupon_id' => $reserva->cupon_id,
             'valor_total' => $reserva->valor_total,
             'valor_pagado' => $reserva->valor_pagado,
+            'valor_reembolsado' => $reserva->valor_reembolsado,
             'pagos' => PagoService::pagosDeReserva($id),
             'estado' => $reserva->estado,
             'observaciones' => $reserva->observaciones,

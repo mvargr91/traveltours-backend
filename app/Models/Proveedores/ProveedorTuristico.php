@@ -17,11 +17,43 @@ class ProveedorTuristico extends Model
 
     protected $table = 'proveedores_turisticos';
 
+    // Tipo de servicio del negocio (proveedores_turisticos.tipo_servicio). Deben coincidir con el frontend.
+    public const TIPOS_SERVICIO = [
+        'operador_turistico', 'guia_turistico', 'agencia_viajes', 'alojamiento', 'transporte',
+        'actividades_aventura', 'restaurante', 'otro',
+    ];
+    public const TIPOS_CUENTA = ['ahorros', 'corriente'];
+    // Cuenta donde el proveedor recibe sus pagos: solo la ven el administrador y el propio proveedor.
+    public const CAMPOS_BANCARIOS = ['banco', 'tipo_cuenta', 'numero_cuenta', 'titular_cuenta', 'documento_titular'];
+    public const MAX_FOTOS = 12;
+
+    // Reglas de los datos del registro que comparten el formulario del panel, "Mi negocio" y el registro público.
+    public static function reglasRegistro(): array
+    {
+        return [
+            'tipo_servicio' => 'nullable|string|in:' . implode(',', self::TIPOS_SERVICIO),
+            'categorias' => 'nullable|array|max:20',
+            'categorias.*' => 'integer|exists:categorias,id',
+            'banco' => 'nullable|string|max:100',
+            'tipo_cuenta' => 'nullable|string|in:' . implode(',', self::TIPOS_CUENTA),
+            'numero_cuenta' => ['nullable', 'string', 'max:40', 'regex:/^[0-9-]+$/'],
+            'titular_cuenta' => 'nullable|string|max:150',
+            'documento_titular' => 'nullable|string|max:50',
+        ];
+    }
+
+    public const MENSAJES_REGISTRO = [
+        'tipo_servicio.in' => 'El tipo de servicio no es válido.',
+        'tipo_cuenta.in' => 'El tipo de cuenta debe ser ahorros o corriente.',
+        'numero_cuenta.regex' => 'El número de cuenta solo puede tener números y guiones.',
+    ];
+
     protected $fillable = [
         'usuario_id',
         'nombre_comercial',
         'razon_social',
         'nit',
+        'tipo_servicio',
         'descripcion',
         'telefono',
         'correo',
@@ -31,6 +63,11 @@ class ProveedorTuristico extends Model
         'instagram',
         'facebook',
         'rnt',
+        'banco',
+        'tipo_cuenta',
+        'numero_cuenta',
+        'titular_cuenta',
+        'documento_titular',
         'estado_verificacion',
         'observaciones_verificacion',
         'verificado_en',
@@ -66,6 +103,8 @@ class ProveedorTuristico extends Model
                 'proveedores_turisticos.nombre_comercial',
                 'proveedores_turisticos.razon_social',
                 'proveedores_turisticos.nit',
+                'proveedores_turisticos.tipo_servicio',
+                'proveedores_turisticos.logo',
                 'proveedores_turisticos.descripcion',
                 'proveedores_turisticos.telefono',
                 'proveedores_turisticos.correo',
@@ -91,6 +130,12 @@ class ProveedorTuristico extends Model
 
         if (isset($dto['nombre'])) {
             $query->where('proveedores_turisticos.nombre_comercial', 'like', '%' . $dto['nombre'] . '%');
+        }
+        if (isset($dto['estado_verificacion'])) {
+            $query->where('proveedores_turisticos.estado_verificacion', $dto['estado_verificacion']);
+        }
+        if (isset($dto['tipo_servicio'])) {
+            $query->where('proveedores_turisticos.tipo_servicio', $dto['tipo_servicio']);
         }
 
         if (isset($dto['ordenar_por']) && count($dto['ordenar_por']) > 0) {
@@ -138,16 +183,21 @@ class ProveedorTuristico extends Model
         ];
     }
 
-    public static function cargar($id)
+    // $conDatosBancarios: false cuando consulta otro proveedor (la cuenta bancaria es privada).
+    public static function cargar($id, $conDatosBancarios = true)
     {
         $proveedor = ProveedorTuristico::find($id);
 
-        return [
+        $datos = [
             'id' => $proveedor->id,
             'usuario_id' => $proveedor->usuario_id,
             'nombre_comercial' => $proveedor->nombre_comercial,
             'razon_social' => $proveedor->razon_social,
             'nit' => $proveedor->nit,
+            'tipo_servicio' => $proveedor->tipo_servicio,
+            'categorias' => self::categoriasDe($id),
+            'logo' => $proveedor->logo,
+            'fotos' => self::fotosDe($id),
             'descripcion' => $proveedor->descripcion,
             'telefono' => $proveedor->telefono,
             'correo' => $proveedor->correo,
@@ -169,6 +219,36 @@ class ProveedorTuristico extends Model
             'fecha_creacion' => (new Carbon($proveedor->created_at))->format('Y-m-d H:i:s'),
             'fecha_modificacion' => (new Carbon($proveedor->updated_at))->format('Y-m-d H:i:s'),
         ];
+        if ($conDatosBancarios) {
+            foreach (self::CAMPOS_BANCARIOS as $campo) {
+                $datos[$campo] = $proveedor->$campo;
+            }
+        }
+        return $datos;
+    }
+
+    // Ids de las categorías del proveedor (qué tipo de experiencias ofrece).
+    public static function categoriasDe($id)
+    {
+        return DB::table('proveedor_categoria')->where('proveedor_id', $id)->pluck('categoria_id')->map(fn ($c) => (int) $c)->values();
+    }
+
+    public static function fotosDe($id)
+    {
+        return DB::table('proveedor_fotos')->where('proveedor_id', $id)->orderBy('posicion')->orderBy('id')->get(['id', 'ruta_archivo', 'posicion']);
+    }
+
+    // Reemplaza las categorías del proveedor por las indicadas.
+    public static function sincronizarCategorias($id, array $categorias)
+    {
+        DB::table('proveedor_categoria')->where('proveedor_id', $id)->delete();
+        $filas = collect($categorias)->filter()->unique()->map(fn ($categoriaId) => [
+            'proveedor_id' => $id,
+            'categoria_id' => (int) $categoriaId,
+        ])->values()->all();
+        if ($filas) {
+            DB::table('proveedor_categoria')->insert($filas);
+        }
     }
 
     public static function modificarOCrear($dto)
@@ -193,6 +273,9 @@ class ProveedorTuristico extends Model
         $guardado = $proveedor->save();
         if (!$guardado) {
             throw new Exception('Ocurrió un error al intentar guardar el proveedor turístico.');
+        }
+        if (isset($dto['categorias']) && is_array($dto['categorias'])) {
+            self::sincronizarCategorias($proveedor->id, $dto['categorias']);
         }
 
         $auditoriaDto = [
@@ -271,6 +354,8 @@ class ProveedorTuristico extends Model
             ->select(
                 'proveedores_turisticos.id',
                 'proveedores_turisticos.nombre_comercial',
+                'proveedores_turisticos.tipo_servicio',
+                'proveedores_turisticos.logo',
                 'proveedores_turisticos.descripcion',
                 'proveedores_turisticos.telefono',
                 'proveedores_turisticos.correo',
@@ -288,6 +373,14 @@ class ProveedorTuristico extends Model
         if (!$proveedor) {
             return null;
         }
+
+        $proveedor->fotos = DB::table('proveedor_fotos')->where('proveedor_id', $id)->orderBy('posicion')->orderBy('id')->pluck('ruta_archivo');
+        $proveedor->categorias = DB::table('proveedor_categoria')
+            ->join('categorias', 'categorias.id', '=', 'proveedor_categoria.categoria_id')
+            ->where('proveedor_categoria.proveedor_id', $id)
+            ->where('categorias.estado', 1)
+            ->orderBy('categorias.nombre')
+            ->get(['categorias.id', 'categorias.nombre', 'categorias.slug']);
 
         $proveedor->total_experiencias = DB::table('experiencias')
             ->where('proveedor_id', $id)
