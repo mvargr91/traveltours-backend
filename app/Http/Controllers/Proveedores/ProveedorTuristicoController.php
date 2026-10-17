@@ -10,9 +10,12 @@ use App\Http\Controllers\Controller;
 use App\Services\ArchivosService;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Proveedores\ProveedorTuristico;
+use App\Http\Controllers\Concerns\AlcancePorRol;
 
 class ProveedorTuristicoController extends Controller
 {
+    use AlcancePorRol;
+
     public function index(Request $request)
     {
         try {
@@ -59,7 +62,7 @@ class ProveedorTuristicoController extends Controller
                 'destino_id' => 'integer|nullable|exists:destinos,id',
                 'estado_verificacion' => 'string|nullable|max:30',
                 'estado' => 'boolean|required',
-            ]);
+            ] + ProveedorTuristico::reglasRegistro(), ProveedorTuristico::MENSAJES_REGISTRO);
 
             if ($validator->fails()) {
                 return response(
@@ -104,7 +107,9 @@ class ProveedorTuristicoController extends Controller
                 );
             }
 
-            return response(ProveedorTuristico::cargar($id), Response::HTTP_OK);
+            // Los proveedores leen esta ficha desde sus formularios: la cuenta bancaria solo la ve el dueño.
+            $conDatosBancarios = !$this->esProveedor() || $this->enAlcance($id);
+            return response(ProveedorTuristico::cargar($id, $conDatosBancarios), Response::HTTP_OK);
         } catch (Exception $e) {
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
@@ -127,7 +132,7 @@ class ProveedorTuristicoController extends Controller
                 'destino_id' => 'integer|nullable|exists:destinos,id',
                 'estado_verificacion' => 'string|nullable|max:30',
                 'estado' => 'boolean|required',
-            ]);
+            ] + ProveedorTuristico::reglasRegistro(), ProveedorTuristico::MENSAJES_REGISTRO);
 
             if ($validator->fails()) {
                 return response(

@@ -24,6 +24,11 @@ class TurismoMenuSeeder extends Seeder
 
     // modulo => [icono, posicion, opciones[nombre, url, icono, entidad del permiso, permisos (opcional)]]
     private const MENU = [
+        // Primero en el menú: tras ingresar, el panel abre la primera opción (el dashboard).
+        'Inicio' => ['space_dashboard', 0, [
+            ['Dashboard', '/dashboard', 'insights', 'Dashboard', ['Listar']],
+            ['Reportes', '/reportes', 'assessment', 'Reporte', ['Listar']],
+        ]],
         'Catálogo Turístico' => ['travel_explore', 10, [
             ['Destinos', '/destinos', 'place', 'Destino'],
             ['Categorías', '/categorias', 'category', 'Categoria'],
@@ -34,7 +39,8 @@ class TurismoMenuSeeder extends Seeder
             ['Experiencias', '/experiencias', 'tour', 'Experiencia'],
         ]],
         'Ventas' => ['point_of_sale', 12, [
-            ['Reservas', '/reservas', 'event_available', 'Reserva'],
+            // Reembolsar: registrar el dinero devuelto al viajero (solo administración).
+            ['Reservas', '/reservas', 'event_available', 'Reserva', ['Crear', 'Modificar', 'Eliminar', 'Listar', 'Reembolsar']],
             ['Reseñas', '/resenas', 'reviews', 'Resena'],
         ]],
         'Marketing' => ['campaign', 13, [

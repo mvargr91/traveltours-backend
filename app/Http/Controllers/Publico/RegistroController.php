@@ -39,7 +39,12 @@ class RegistroController extends Controller
                 'nit' => 'nullable|string|max:50',
                 'telefono' => 'nullable|string|max:30',
                 'destino_id' => 'nullable|integer|exists:destinos,id',
+                'tipo_servicio' => 'required_if:tipo,proveedor|nullable|string|in:' . implode(',', ProveedorTuristico::TIPOS_SERVICIO),
+                'categorias' => 'nullable|array|max:20',
+                'categorias.*' => 'integer|exists:categorias,id',
             ], [
+                'tipo_servicio.required_if' => 'Indica el tipo de servicio de tu negocio.',
+                'tipo_servicio.in' => 'El tipo de servicio no es válido.',
                 'identificacion_usuario.unique' => 'El número de identificación ya está registrado.',
                 'correo_electronico.unique' => 'El correo electrónico ya está registrado.',
                 'clave.confirmed' => 'Las contraseñas no coinciden.',
@@ -106,6 +111,7 @@ class RegistroController extends Controller
                     'usuario_id' => $usuarioId,
                     'nombre_comercial' => $datos['nombre_comercial'],
                     'nit' => $datos['nit'] ?? null,
+                    'tipo_servicio' => $datos['tipo_servicio'] ?? null,
                     'telefono' => $datos['telefono'] ?? null,
                     'correo' => $datos['correo_electronico'],
                     'destino_id' => $datos['destino_id'] ?? null,
@@ -114,6 +120,7 @@ class RegistroController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]));
+                ProveedorTuristico::sincronizarCategorias($proveedorId, $datos['categorias'] ?? []);
 
                 AuditoriaTabla::crear([
                     'externo' => true,
