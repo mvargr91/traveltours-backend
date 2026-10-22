@@ -122,7 +122,7 @@ class PagoController extends Controller
             'pasarela' => $pasarela,
             'env' => $request->query('env') === 'test' ? 'test' : null,
         ]);
-        return redirect()->away(rtrim(env('APP_FRONT_URL', ''), '/') . '/pago/resultado?' . http_build_query($parametros));
+        return redirect()->away(config('app.front_url') . '/pago/resultado?' . http_build_query($parametros));
     }
 
     // Webhook de la pasarela (URL de eventos / notificaciones de su panel). Solo procesa eventos con firma válida.

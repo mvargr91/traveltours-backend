@@ -39,6 +39,7 @@ class PortalRolesSeeder extends Seeder
         'ListarExperiencia', 'CrearExperiencia', 'ModificarExperiencia',
         'ListarReserva', 'ModificarReserva',
         'ListarResena', 'ListarDashboard', 'ListarReporte',
+        'ListarEnvioCorreo', 'CrearEnvioCorreo',
     ];
 
     public function run()

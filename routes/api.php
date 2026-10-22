@@ -236,6 +236,16 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico|EliminarMiDocumento');
     });
 
+    // Envíos de correo a los clientes de un proveedor (el proveedor solo a los suyos)
+    Route::group(["prefix" => "envios-correo"], function () {
+        Route::get('/', [Turismo\EnvioCorreoController::class, 'index'])->name('envios-correo.index')->middleware('permission:ListarEnvioCorreo');
+        Route::get('/clientes', [Turismo\EnvioCorreoController::class, 'clientes'])->name('envios-correo.clientes')->middleware('permission:CrearEnvioCorreo');
+        Route::post('/imagenes', [Turismo\EnvioCorreoController::class, 'subirImagen'])->name('envios-correo.imagenes')->middleware('permission:CrearEnvioCorreo');
+        Route::post('/resumen', [Turismo\EnvioCorreoController::class, 'resumen'])->name('envios-correo.resumen')->middleware('permission:CrearEnvioCorreo');
+        Route::post('/', [Turismo\EnvioCorreoController::class, 'store'])->name('envios-correo.store')->middleware('permission:CrearEnvioCorreo');
+        Route::get('/{id}', [Turismo\EnvioCorreoController::class, 'show'])->whereNumber('id')->name('envios-correo.show')->middleware('permission:ListarEnvioCorreo');
+    });
+
     // Cupones
     Route::group(["prefix" => "cupones"], function () {
         Route::get('/', [Turismo\CuponController::class, 'index'])->name('cupones.index')->middleware('permission:ListarCupon|ListarReserva');

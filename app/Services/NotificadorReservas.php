@@ -288,6 +288,6 @@ class NotificadorReservas
 
     private static function urlFront($ruta)
     {
-        return rtrim(env('APP_FRONT_URL', ''), '/') . $ruta;
+        return config('app.front_url') . $ruta;
     }
 }

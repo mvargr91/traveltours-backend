@@ -57,4 +57,10 @@ return [
         ],
     ],
 
+    // Cliente "password grant" de Passport con el que el login pide el token (UserController@login).
+    'passport' => [
+        'client_id' => env('PASSWORD_CLIENT_ID'),
+        'client_secret' => env('PASSWORD_CLIENT_SECRET'),
+    ],
+
 ];

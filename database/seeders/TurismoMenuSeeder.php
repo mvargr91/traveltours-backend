@@ -46,6 +46,7 @@ class TurismoMenuSeeder extends Seeder
         'Marketing' => ['campaign', 13, [
             ['Cupones', '/cupones', 'confirmation_number', 'Cupon'],
             ['Promociones', '/promociones', 'local_offer', 'Promocion'],
+            ['Envíos de correo', '/envios-correo', 'forward_to_inbox', 'EnvioCorreo', ['Listar', 'Crear']],
         ]],
         'Parametrización' => ['tune', 90, [
             ['Parámetros', '/parametros-constantes', 'settings', 'ParametroConstante'],

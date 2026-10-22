@@ -411,7 +411,7 @@ class PlanDetalladoController extends Controller
                 $detalles = PlanDetallado::obtenerDetallesPagos($idsPagados);
                 $valorTotalPagado = collect($detalles)->sum(fn($p) => $p->valor_concepto - $p->valor_ret_fuente);
                 Mail::to($emailTercero)
-                ->bcc(env('MAIL_USERNAME')) 
+                ->bcc(config('mail.mailers.smtp.username')) 
                 ->send(new PagosConfirmadosMail($nombreTercero, $valorTotalPagado, $detalles)
                 );
             
