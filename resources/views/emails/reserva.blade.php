@@ -13,7 +13,7 @@
         'no_asistio' => ['No asistió', '#3B3838'],
     ];
     [$estadoNombre, $estadoColor] = $estados[$reserva->estado] ?? [$reserva->estado, '#3B3838'];
-    $front = rtrim(env('APP_FRONT_URL', ''), '/');
+    $front = config('app.front_url');
     $filas = [
         'Experiencia' => $reserva->experiencia_nombre,
         'Fecha' => $reserva->fecha . ($reserva->hora_inicio ? ' · ' . substr($reserva->hora_inicio, 0, 5) : ''),
@@ -51,7 +51,7 @@
                 </tr>
                 <tr>
                     <td align="center" style="padding:24px 24px 8px;">
-                        <img src="{{ $front }}/brand/logo.png" alt="Travel City LGTBIQ+" height="48" style="height:48px; border:0;">
+                        @include('emails.partials.logo')
                     </td>
                 </tr>
                 <tr>

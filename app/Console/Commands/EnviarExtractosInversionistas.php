@@ -106,7 +106,7 @@ class EnviarExtractosInversionistas extends Command
             ])->output();
 
             Mail::to($inversionista->email)
-            ->bcc(env('MAIL_USERNAME'))
+            ->bcc(config('mail.mailers.smtp.username'))
             ->send(new ExtractoInversionistaMail($pdf, $inversionista));
         }
 

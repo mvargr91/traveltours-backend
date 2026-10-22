@@ -223,7 +223,7 @@ class ExperienciaController extends Controller
             $datos['id'] = $id;
             $validator = Validator::make($datos, [
                 'id' => 'integer|required|exists:experiencias,id',
-                'estado' => 'string|required|in:borrador,en_revision,aprobada,publicada,rechazada,suspendida,archivada',
+                'estado' => 'string|required|in:' . implode(',', Experiencia::ESTADOS),
             ]);
 
             if ($validator->fails()) {
@@ -236,9 +236,13 @@ class ExperienciaController extends Controller
             if (!$this->experienciaEnAlcance($id)) {
                 return $this->respuestaSinAcceso();
             }
-            // El proveedor solo envía a revisión o archiva; aprobar/publicar es del administrador.
-            if ($this->esProveedor() && !in_array($datos['estado'], ['borrador', 'en_revision', 'archivada'])) {
-                return $this->respuestaSinAcceso();
+            // Las experiencias no requieren aprobación: el proveedor publica las suyas directamente.
+            // Solo el administrador suspende, y una experiencia suspendida solo la reactiva él.
+            if ($this->esProveedor()) {
+                $actual = Experiencia::where('id', $id)->value('estado');
+                if ($datos['estado'] === 'suspendida' || $actual === 'suspendida') {
+                    return $this->respuestaSinAcceso();
+                }
             }
 
             $experiencia = Experiencia::cambiarEstado($id, $datos['estado']);

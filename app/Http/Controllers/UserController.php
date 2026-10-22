@@ -87,7 +87,7 @@ class UserController extends Controller
         }
 
         $http = new Client;
-        $hostname = env("APP_URL");
+        $hostname = config("app.url");
 
         // var_dump($hostname);
 
@@ -107,8 +107,8 @@ class UserController extends Controller
 
                 $response = $http->post($hostname.'/oauth/token', [
                     'form_params' => [
-                        'client_id' => env("PASSWORD_CLIENT_ID"),
-                        'client_secret' => env("PASSWORD_CLIENT_SECRET"),
+                        'client_id' => config('services.passport.client_id'),
+                        'client_secret' => config('services.passport.client_secret'),
                         'grant_type' => 'password',
                         'username' => $request->username,
                         'password' => $request->password
@@ -302,7 +302,7 @@ class UserController extends Controller
         }
 
         $parametroCorreo->texto = str_replace('&amp;1', $usuario->nombre, $parametroCorreo->texto);
-        $parametroCorreo->texto = str_replace('&amp;2', env('APP_FRONT_URL') . '/reset-password/' . $token, $parametroCorreo->texto);
+        $parametroCorreo->texto = str_replace('&amp;2', config('app.front_url') . '/reset-password/' . $token, $parametroCorreo->texto);
 
         Mail::send('emails.reset-password', ['texto' => $parametroCorreo->texto], function (Message $message) use ($user, $usuario, $parametroCorreo) {
             $message->subject($parametroCorreo->asunto);

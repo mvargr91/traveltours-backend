@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
 use App\Services\PagoService;
+use App\Models\Experiencias\ExperienciaPrecio;
+use App\Models\Turismo\Cupon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Reserva extends Model
@@ -39,6 +41,7 @@ class Reserva extends Model
         'cantidad_chicos',
         'idioma',
         'cupon_id',
+        'valor_descuento_cupon',
         'valor_total',
         'estado',
         'observaciones',
@@ -49,12 +52,33 @@ class Reserva extends Model
         'usuario_modificacion_nombre',
     ];
 
-    // Mismo cálculo que el portal: precio desde × personas, menos la mejor promoción vigente.
-    // Lo usan las reservas del portal y las de clientes, para que el monto (y el pago en línea) no dependa del navegador.
-    public static function calcularTotal($experienciaId, $personas)
+    // Mismo cálculo que el portal: valor por persona según el tamaño del grupo × personas, menos la mejor
+    // promoción vigente y, sobre lo que queda, el cupón. Lo usan las reservas del portal y las de clientes,
+    // para que el monto (y el pago en línea) no dependa del navegador.
+    public static function calcularTotal($experienciaId, $personas, $cupon = null)
     {
-        $precioDesde = DB::table('experiencias')->where('id', $experienciaId)->value('precio_desde');
-        $subtotal = (float) $precioDesde * $personas;
+        return self::calcularValores($experienciaId, $personas, $cupon)['total'];
+    }
+
+    /** Desglose del valor de una reserva: lo muestra el portal antes de confirmar. */
+    public static function calcularValores($experienciaId, $personas, $cupon = null)
+    {
+        $valorPersona = ExperienciaPrecio::valorPorPersona($experienciaId, $personas);
+        $subtotal = $valorPersona * $personas;
+        $descuentoPromocion = self::descuentoPromocion($experienciaId, $subtotal);
+        $descuentoCupon = $cupon ? Cupon::descuentoSobre($cupon, $subtotal - $descuentoPromocion) : 0;
+
+        return [
+            'valor_persona' => $valorPersona,
+            'subtotal' => $subtotal,
+            'descuento_promocion' => $descuentoPromocion,
+            'descuento_cupon' => $descuentoCupon,
+            'total' => $subtotal - $descuentoPromocion - $descuentoCupon,
+        ];
+    }
+
+    private static function descuentoPromocion($experienciaId, $subtotal)
+    {
         $hoy = Carbon::now()->toDateString();
 
         $promocion = DB::table('promociones')
@@ -68,13 +92,11 @@ class Reserva extends Model
             ->first();
 
         if (!$promocion) {
-            return $subtotal;
+            return 0;
         }
-        $descuento = $promocion->tipo_descuento === 'porcentaje'
+        return $promocion->tipo_descuento === 'porcentaje'
             ? round($subtotal * (float) $promocion->valor_descuento / 100)
             : min((float) $promocion->valor_descuento, $subtotal);
-
-        return $subtotal - $descuento;
     }
 
     /**
@@ -151,6 +173,7 @@ class Reserva extends Model
                 'reservas.cantidad_chicos',
                 'reservas.idioma',
                 'reservas.cupon_id',
+                'reservas.valor_descuento_cupon',
                 'reservas.valor_total',
                 'reservas.valor_pagado',
                 'reservas.valor_reembolsado',
@@ -266,6 +289,8 @@ class Reserva extends Model
             'cantidad_chicos' => $reserva->cantidad_chicos,
             'idioma' => $reserva->idioma,
             'cupon_id' => $reserva->cupon_id,
+            'cupon_codigo' => $reserva->cupon_id ? DB::table('cupones')->where('id', $reserva->cupon_id)->value('codigo') : null,
+            'valor_descuento_cupon' => $reserva->valor_descuento_cupon,
             'valor_total' => $reserva->valor_total,
             'valor_pagado' => $reserva->valor_pagado,
             'valor_reembolsado' => $reserva->valor_reembolsado,

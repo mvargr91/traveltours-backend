@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\Reserva;
+use App\Models\Turismo\Cupon;
 use App\Services\NotificadorReservas;
 use App\Services\PagoService;
 
@@ -67,6 +68,7 @@ class ReservaController extends Controller
                 'cantidad_chicos' => 'integer|nullable',
                 'idioma' => 'string|nullable|max:50',
                 'cupon_id' => 'integer|nullable|exists:cupones,id',
+                'codigo_cupon' => 'string|nullable|max:40',
                 'valor_total' => 'numeric|required',
             ]);
 
@@ -84,9 +86,25 @@ class ReservaController extends Controller
             }
 
             $datos['estado'] = Reserva::estadoInicial($datos['experiencia_id']);
+
+            // Cupón: el panel lo elige por id y el viajero con sesión lo escribe (código). Se valida aquí,
+            // con el cupón bloqueado, para que no se pase de la cantidad disponible.
+            $cupon = null;
+            $criterio = !empty($datos['cupon_id']) ? ['id' => $datos['cupon_id']] : (!empty($datos['codigo_cupon']) ? ['codigo' => $datos['codigo_cupon']] : null);
+            if ($criterio) {
+                [$cupon, $errorCupon] = Cupon::validarParaReserva($criterio, $datos['experiencia_id'], true);
+                if ($errorCupon) {
+                    DB::rollback();
+                    return response(get_response_body([$errorCupon]), Response::HTTP_CONFLICT);
+                }
+            }
+            unset($datos['codigo_cupon']);
+            $valores = Reserva::calcularValores($datos['experiencia_id'], $datos['cantidad_personas'], $cupon);
+            $datos['cupon_id'] = $cupon->id ?? null;
+            $datos['valor_descuento_cupon'] = $valores['descuento_cupon'];
             // El cliente no fija el precio (con pago en línea pagaría lo que envíe el navegador).
             if ($this->esCliente()) {
-                $datos['valor_total'] = Reserva::calcularTotal($datos['experiencia_id'], $datos['cantidad_personas']);
+                $datos['valor_total'] = $valores['total'];
             }
             $reserva = Reserva::modificarOCrear($datos);
 

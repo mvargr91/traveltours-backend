@@ -46,6 +46,7 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     Route::post('/registro', [Publico\RegistroController::class, 'store'])->middleware('throttle:10,1,registro')->name('publico.registro');
     // Reserva sin cuenta: crear y consultar por código + correo.
     Route::post('/reservas', [Publico\ReservaController::class, 'store'])->middleware('throttle:5,1,reserva-invitado')->name('publico.reservas.store');
+    Route::get('/cupones/validar', [Publico\ReservaController::class, 'validarCupon'])->middleware('throttle:20,1,cupon-validar')->name('publico.cupones.validar');
     Route::get('/reservas/{codigo}', [Publico\ReservaController::class, 'show'])->middleware('throttle:20,1,reserva-consulta')->name('publico.reservas.show');
     // Pago en línea: iniciar el checkout, consultar al volver, retorno y webhook de cada pasarela.
     Route::post('/reservas/{codigo}/pago', [Publico\PagoController::class, 'iniciar'])->middleware('throttle:10,1,pago-iniciar')->name('publico.pagos.iniciar');
@@ -233,6 +234,16 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::get('/{id}/archivo', [Proveedores\DocumentoProveedorController::class, 'archivo'])->name('documentos-proveedor.archivo')->middleware('permission:ListarProveedorTuristico|ListarMiDocumento');
         Route::put('/{id}', [Proveedores\DocumentoProveedorController::class, 'update'])->name('documentos-proveedor.update')->middleware('permission:ModificarProveedorTuristico|ModificarMiDocumento');
         Route::delete('/{id}', [Proveedores\DocumentoProveedorController::class, 'destroy'])->name('documentos-proveedor.delete')->middleware('permission:EliminarProveedorTuristico|EliminarMiDocumento');
+    });
+
+    // Envíos de correo a los clientes de un proveedor (el proveedor solo a los suyos)
+    Route::group(["prefix" => "envios-correo"], function () {
+        Route::get('/', [Turismo\EnvioCorreoController::class, 'index'])->name('envios-correo.index')->middleware('permission:ListarEnvioCorreo');
+        Route::get('/clientes', [Turismo\EnvioCorreoController::class, 'clientes'])->name('envios-correo.clientes')->middleware('permission:CrearEnvioCorreo');
+        Route::post('/imagenes', [Turismo\EnvioCorreoController::class, 'subirImagen'])->name('envios-correo.imagenes')->middleware('permission:CrearEnvioCorreo');
+        Route::post('/resumen', [Turismo\EnvioCorreoController::class, 'resumen'])->name('envios-correo.resumen')->middleware('permission:CrearEnvioCorreo');
+        Route::post('/', [Turismo\EnvioCorreoController::class, 'store'])->name('envios-correo.store')->middleware('permission:CrearEnvioCorreo');
+        Route::get('/{id}', [Turismo\EnvioCorreoController::class, 'show'])->whereNumber('id')->name('envios-correo.show')->middleware('permission:ListarEnvioCorreo');
     });
 
     // Cupones

@@ -189,6 +189,30 @@ class ExperienciaPrecio extends Model
         DB::table('experiencias')->where('id', $experienciaId)->update(['precio_desde' => $minimo]);
     }
 
+    /**
+     * Valor por persona para un grupo de $personas: en cada precio aplica la cantidad más alta que no
+     * supere el número de personas (si el grupo es menor que la primera cantidad, aplica la primera).
+     * Se usan los precios de adulto activos (si no hay, de cualquier tipo) y entre ellos el menor valor.
+     * Así 1 persona paga la tarifa de 1 persona aunque desde 4 personas sea más barata.
+     */
+    public static function valorPorPersona($experienciaId, $personas)
+    {
+        $precios = self::obtenerColeccion(['experiencia_id' => $experienciaId, 'solo_activos' => true])
+            ->filter(fn ($p) => $p->cantidades->isNotEmpty());
+        $adultos = $precios->where('tipo', 'adulto');
+        $aplicables = $adultos->isNotEmpty() ? $adultos : $precios;
+
+        $valores = $aplicables->map(function ($precio) use ($personas) {
+            $tramo = $precio->cantidades->filter(fn ($c) => (int) $c['cantidad'] <= (int) $personas)->last()
+                ?? $precio->cantidades->first();
+            return (float) $tramo['valor'];
+        });
+
+        return $valores->isNotEmpty()
+            ? $valores->min()
+            : (float) DB::table('experiencias')->where('id', $experienciaId)->value('precio_desde');
+    }
+
     public static function eliminar($id)
     {
         $precio = ExperienciaPrecio::find($id);

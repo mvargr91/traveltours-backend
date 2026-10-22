@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // URL del frontend (enlaces de los correos, retorno de pagos). Leer siempre con config('app.front_url'):
+    // con la configuración en caché env() no funciona fuera de config/.
+    'front_url' => rtrim(env('APP_FRONT_URL', ''), '/'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

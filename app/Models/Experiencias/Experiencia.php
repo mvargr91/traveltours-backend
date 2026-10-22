@@ -19,6 +19,8 @@ class Experiencia extends Model
 
     // Tipo de experiencia (experiencias.tipo): cómo se vive, aparte de la categoría. Nombres en Turismo.jsx del frontend.
     public const TIPOS = ['grupal', 'privada', 'personalizada', 'autoguiada'];
+    // Sin flujo de aprobación: cada proveedor o administrador publica directamente.
+    public const ESTADOS = ['borrador', 'publicada', 'suspendida', 'archivada'];
 
     protected $fillable = [
         'proveedor_id',
@@ -55,9 +57,13 @@ class Experiencia extends Model
             ->select(
                 'experiencias.id',
                 'experiencias.nombre',
+                'experiencias.proveedor_id',
                 'experiencias.estado',
             )
-            ->where('experiencias.estado', 'publicada');
+            // `todas` incluye las no publicadas (p. ej. para limitar un cupón a experiencias en borrador).
+            ->when(empty($dto['todas']), fn ($q) => $q->where('experiencias.estado', 'publicada'))
+            // El proveedor (aplicarAlcance) solo ve sus experiencias.
+            ->when(!empty($dto['proveedor_id']), fn ($q) => $q->where('experiencias.proveedor_id', $dto['proveedor_id']));
 
         $query->orderBy('nombre', 'asc');
         return $query->get();

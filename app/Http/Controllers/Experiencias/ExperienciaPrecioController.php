@@ -95,7 +95,7 @@ class ExperienciaPrecioController extends Controller
                 return $this->respuestaSinAcceso();
             }
 
-            return response(ExperienciaPrecio::cargar($id), Response::HTTP_OK);
+            return response()->json(ExperienciaPrecio::cargar($id), Response::HTTP_OK);
         } catch (Exception $e) {
             return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
