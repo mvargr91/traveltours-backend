@@ -43,7 +43,7 @@ class DashboardController extends Controller
 
             $indicadores = [
                 'experiencias_publicadas' => (int) ($porEstadoExperiencia['publicada'] ?? 0),
-                'experiencias_en_revision' => (int) ($porEstadoExperiencia['en_revision'] ?? 0),
+                'experiencias_suspendidas' => (int) ($porEstadoExperiencia['suspendida'] ?? 0),
                 'experiencias_borrador' => (int) ($porEstadoExperiencia['borrador'] ?? 0),
                 'reservas_pendientes' => $reservas()->whereIn('estado', ['pendiente', 'pendiente_pago'])->count(),
                 'reservas_confirmadas' => $reservas()->where('estado', 'aceptada')->where('fecha', '>=', $hoy->toDateString())->count(),

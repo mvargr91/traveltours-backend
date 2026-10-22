@@ -46,6 +46,7 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     Route::post('/registro', [Publico\RegistroController::class, 'store'])->middleware('throttle:10,1,registro')->name('publico.registro');
     // Reserva sin cuenta: crear y consultar por código + correo.
     Route::post('/reservas', [Publico\ReservaController::class, 'store'])->middleware('throttle:5,1,reserva-invitado')->name('publico.reservas.store');
+    Route::get('/cupones/validar', [Publico\ReservaController::class, 'validarCupon'])->middleware('throttle:20,1,cupon-validar')->name('publico.cupones.validar');
     Route::get('/reservas/{codigo}', [Publico\ReservaController::class, 'show'])->middleware('throttle:20,1,reserva-consulta')->name('publico.reservas.show');
     // Pago en línea: iniciar el checkout, consultar al volver, retorno y webhook de cada pasarela.
     Route::post('/reservas/{codigo}/pago', [Publico\PagoController::class, 'iniciar'])->middleware('throttle:10,1,pago-iniciar')->name('publico.pagos.iniciar');

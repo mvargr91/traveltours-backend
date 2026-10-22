@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Reservas\Reserva;
+use App\Models\Turismo\Cupon;
 use App\Models\Seguridad\AuditoriaTabla;
 use App\Services\NotificadorReservas;
 use App\Services\PagoService;
@@ -36,6 +37,7 @@ class ReservaController extends Controller
                 'correo' => 'email|required|max:150',
                 'telefono' => ['string', 'required', 'max:30', 'regex:/^[+]?[0-9\s-]*$/'],
                 'observaciones' => 'string|nullable|max:1000',
+                'codigo_cupon' => 'string|nullable|max:40',
             ]);
 
             if ($validator->fails()) {
@@ -74,6 +76,16 @@ class ReservaController extends Controller
                 );
             }
 
+            $cupon = null;
+            if (!empty($datos['codigo_cupon'])) {
+                [$cupon, $errorCupon] = Cupon::validarParaReserva(['codigo' => $datos['codigo_cupon']], $experiencia->id, true);
+                if ($errorCupon) {
+                    DB::rollback();
+                    return response(get_response_body([$errorCupon]), Response::HTTP_CONFLICT);
+                }
+            }
+            $valores = Reserva::calcularValores($experiencia->id, $datos['cantidad_personas'], $cupon);
+
             $reserva = Reserva::create([
                 'usuario_id' => null,
                 'experiencia_id' => $experiencia->id,
@@ -88,7 +100,9 @@ class ReservaController extends Controller
                 'cantidad_personas' => $datos['cantidad_personas'],
                 'cantidad_chicos' => 0,
                 'idioma' => $experiencia->idioma,
-                'valor_total' => Reserva::calcularTotal($experiencia->id, $datos['cantidad_personas']),
+                'cupon_id' => $cupon->id ?? null,
+                'valor_descuento_cupon' => $valores['descuento_cupon'],
+                'valor_total' => $valores['total'],
                 'estado' => Reserva::estadoInicial($experiencia->id),
                 'observaciones' => $datos['observaciones'] ?? null,
                 'usuario_creacion_id' => 0,
@@ -119,6 +133,49 @@ class ReservaController extends Controller
             );
         } catch (Exception $e) {
             DB::rollback();
+            return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Valida un cupón antes de reservar y devuelve el desglose del valor con el descuento aplicado.
+     * No reserva el cupón: se vuelve a validar (bloqueado) al crear la reserva.
+     */
+    public function validarCupon(Request $request)
+    {
+        try {
+            $datos = $request->all();
+            $validator = Validator::make($datos, [
+                'codigo' => 'string|required|max:40',
+                'experiencia_id' => 'integer|required',
+                'personas' => 'integer|required|min:1|max:100',
+            ]);
+            if ($validator->fails()) {
+                return response(
+                    get_response_body(format_messages_validator($validator)),
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+
+            $publicada = DB::table('experiencias')->where('id', $datos['experiencia_id'])->where('estado', 'publicada')->exists();
+            [$cupon, $error] = $publicada
+                ? Cupon::validarParaReserva(['codigo' => $datos['codigo']], $datos['experiencia_id'])
+                : [null, 'El cupón no aplica para esta experiencia.'];
+            if ($error) {
+                return response(get_response_body([$error]), Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            return response(get_response_body(['Cupón aplicado.', 1], [
+                'cupon' => [
+                    'codigo' => $cupon->codigo,
+                    'nombre' => $cupon->nombre,
+                    'tipo' => $cupon->tipo,
+                    'descuento' => $cupon->descuento,
+                    'valor' => $cupon->valor,
+                ],
+                'valores' => Reserva::calcularValores($datos['experiencia_id'], (int) $datos['personas'], $cupon),
+            ]), Response::HTTP_OK);
+        } catch (Exception $e) {
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -169,6 +226,7 @@ class ReservaController extends Controller
                 'reservas.hora_inicio',
                 'reservas.cantidad_personas',
                 'reservas.valor_total',
+                'reservas.valor_descuento_cupon',
                 'reservas.valor_pagado',
                 'experiencias.modalidad_pago',
                 'experiencias.porcentaje_abono',

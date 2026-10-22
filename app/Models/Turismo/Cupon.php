@@ -11,13 +11,27 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+/**
+ * Cupón de descuento que el viajero usa con un código al reservar.
+ *  - proveedor_id vacío: cupón de la plataforma (lo crea el administrador).
+ *  - Con experiencias (cupon_experiencia) solo aplica a ellas; sin experiencias, a todas las del proveedor
+ *    dueño (o a todas, si es de la plataforma).
+ *  - cantidad: usos máximos (vacío = ilimitado). Los usos son las reservas con el cupón que no están
+ *    canceladas ni rechazadas: al cancelarse una reserva el uso se libera solo.
+ *  - Se aplica sobre el valor que queda después de la promoción vigente.
+ */
 class Cupon extends Model
 {
     use HasFactory;
 
+    // Reservas que no cuentan como uso del cupón.
+    public const ESTADOS_SIN_USO = ['cancelada', 'rechazada'];
+
     protected $table = 'cupones';
 
     protected $fillable = [
+        'codigo',
+        'proveedor_id',
         'tipo',
         'nombre',
         'descripcion',
@@ -33,25 +47,81 @@ class Cupon extends Model
         'usuario_modificacion_nombre',
     ];
 
+    public static function normalizarCodigo($codigo)
+    {
+        return strtoupper(trim((string) $codigo));
+    }
+
+    // Subconsulta con los usos de cada cupón.
+    private static function usosSub()
+    {
+        return DB::table('reservas')
+            ->whereColumn('reservas.cupon_id', 'cupones.id')
+            ->whereNotIn('reservas.estado', self::ESTADOS_SIN_USO)
+            ->selectRaw('COUNT(*)');
+    }
+
+    public static function usos($id)
+    {
+        return DB::table('reservas')
+            ->where('cupon_id', $id)
+            ->whereNotIn('estado', self::ESTADOS_SIN_USO)
+            ->count();
+    }
+
+    public static function experienciasDe($id)
+    {
+        return DB::table('cupon_experiencia')->where('cupon_id', $id)->pluck('experiencia_id')->map(fn ($e) => (int) $e)->values();
+    }
+
+    /**
+     * Cupones vigentes para elegir en una reserva del panel. Con proveedor_id trae los del proveedor y los
+     * de la plataforma; con experiencia_id, solo los que aplican a esa experiencia.
+     */
     public static function obtenerColeccionLigera($dto)
     {
+        $hoy = Carbon::now()->toDateString();
         $query = DB::table('cupones')
             ->select(
                 'cupones.id',
-                'cupones.nombre',
+                DB::raw("CONCAT(cupones.codigo, ' - ', cupones.nombre) as nombre"),
+                'cupones.codigo',
+                'cupones.proveedor_id',
+                'cupones.tipo',
+                'cupones.descuento',
+                'cupones.valor',
                 'cupones.estado',
             )
-            ->where('cupones.estado', 1);
+            ->where('cupones.estado', 1)
+            ->where('cupones.fecha_inicio', '<=', $hoy)
+            ->where('cupones.fecha_fin', '>=', $hoy);
 
-        $query->orderBy('nombre', 'asc');
+        if (!empty($dto['proveedor_id'])) {
+            $query->where(fn ($q) => $q->where('cupones.proveedor_id', $dto['proveedor_id'])->orWhereNull('cupones.proveedor_id'));
+        }
+        if (!empty($dto['experiencia_id'])) {
+            $proveedorExperiencia = DB::table('experiencias')->where('id', $dto['experiencia_id'])->value('proveedor_id');
+            $query->where(fn ($q) => $q->whereNull('cupones.proveedor_id')->orWhere('cupones.proveedor_id', $proveedorExperiencia))
+                ->where(fn ($q) => $q
+                    ->whereNotExists(fn ($s) => $s->from('cupon_experiencia')->whereColumn('cupon_experiencia.cupon_id', 'cupones.id'))
+                    ->orWhereExists(fn ($s) => $s->from('cupon_experiencia')
+                        ->whereColumn('cupon_experiencia.cupon_id', 'cupones.id')
+                        ->where('cupon_experiencia.experiencia_id', $dto['experiencia_id'])));
+        }
+
+        $query->orderBy('cupones.codigo', 'asc');
         return $query->get();
     }
 
     public static function obtenerColeccion($dto)
     {
         $query = DB::table('cupones')
+            ->leftJoin('proveedores_turisticos', 'proveedores_turisticos.id', '=', 'cupones.proveedor_id')
             ->select(
                 'cupones.id',
+                'cupones.codigo',
+                'cupones.proveedor_id',
+                'proveedores_turisticos.nombre_comercial as proveedor_nombre',
                 'cupones.tipo',
                 'cupones.nombre',
                 'cupones.descripcion',
@@ -67,16 +137,26 @@ class Cupon extends Model
                 'cupones.usuario_modificacion_nombre',
                 'cupones.created_at as fecha_creacion',
                 'cupones.updated_at as fecha_modificacion',
-            );
+            )
+            ->selectSub(self::usosSub(), 'usos');
 
         if (isset($dto['nombre'])) {
             $query->where('cupones.nombre', 'like', '%' . $dto['nombre'] . '%');
+        }
+        if (isset($dto['codigo'])) {
+            $query->where('cupones.codigo', 'like', '%' . self::normalizarCodigo($dto['codigo']) . '%');
+        }
+        if (!empty($dto['proveedor_id'])) {
+            $query->where('cupones.proveedor_id', $dto['proveedor_id']);
         }
 
         if (isset($dto['ordenar_por']) && count($dto['ordenar_por']) > 0) {
             foreach ($dto['ordenar_por'] as $attribute => $value) {
                 if ($attribute == 'nombre') {
                     $query->orderBy('cupones.nombre', $value);
+                }
+                if ($attribute == 'codigo') {
+                    $query->orderBy('cupones.codigo', $value);
                 }
                 if ($attribute == 'tipo') {
                     $query->orderBy('cupones.tipo', $value);
@@ -121,6 +201,10 @@ class Cupon extends Model
 
         return [
             'id' => $cupon->id,
+            'codigo' => $cupon->codigo,
+            'proveedor_id' => $cupon->proveedor_id,
+            'experiencias' => self::experienciasDe($cupon->id),
+            'usos' => self::usos($cupon->id),
             'tipo' => $cupon->tipo,
             'nombre' => $cupon->nombre,
             'descripcion' => $cupon->descripcion,
@@ -153,6 +237,10 @@ class Cupon extends Model
             $dto['usuario_modificacion_nombre'] = $usuario->nombre ?? ($dto['usuario_modificacion_nombre'] ?? null);
         }
 
+        if (isset($dto['codigo'])) {
+            $dto['codigo'] = self::normalizarCodigo($dto['codigo']);
+        }
+
         $cupon = isset($dto['id']) ? Cupon::find($dto['id']) : new Cupon();
 
         $cuponOriginal = $cupon->toJson();
@@ -161,6 +249,9 @@ class Cupon extends Model
         $guardado = $cupon->save();
         if (!$guardado) {
             throw new Exception('Ocurrió un error al intentar guardar el cupón.');
+        }
+        if (array_key_exists('experiencias', $dto)) {
+            self::sincronizarExperiencias($cupon->id, $dto['experiencias'] ?? []);
         }
 
         $auditoriaDto = [
@@ -174,6 +265,69 @@ class Cupon extends Model
         AuditoriaTabla::crear($auditoriaDto);
 
         return Cupon::cargar($cupon->id);
+    }
+
+    private static function sincronizarExperiencias($cuponId, array $experiencias)
+    {
+        DB::table('cupon_experiencia')->where('cupon_id', $cuponId)->delete();
+        $filas = array_map(fn ($e) => ['cupon_id' => $cuponId, 'experiencia_id' => (int) $e], array_values(array_unique($experiencias)));
+        if ($filas) {
+            DB::table('cupon_experiencia')->insert($filas);
+        }
+    }
+
+    /**
+     * Valida que el cupón se pueda usar en una reserva de la experiencia.
+     * $criterio: ['codigo' => 'VERANO10'] (portal) o ['id' => 5] (panel).
+     * Con $bloquear toma el cupón con lockForUpdate, para que dos reservas simultáneas no superen la
+     * cantidad: llamarlo dentro de la transacción que guarda la reserva.
+     * Devuelve [cupón, null] o [null, mensaje de error].
+     */
+    public static function validarParaReserva(array $criterio, $experienciaId, $bloquear = false)
+    {
+        $query = isset($criterio['id'])
+            ? Cupon::where('id', $criterio['id'])
+            : Cupon::where('codigo', self::normalizarCodigo($criterio['codigo'] ?? ''));
+        if ($bloquear) {
+            $query->lockForUpdate();
+        }
+        $cupon = $query->first();
+
+        if (!$cupon || !$cupon->estado) {
+            return [null, 'El cupón no existe o no está activo.'];
+        }
+        $hoy = Carbon::now()->toDateString();
+        if ($cupon->fecha_inicio > $hoy) {
+            return [null, 'El cupón todavía no está vigente.'];
+        }
+        if ($cupon->fecha_fin < $hoy) {
+            return [null, 'El cupón está vencido.'];
+        }
+
+        $experiencias = self::experienciasDe($cupon->id);
+        $proveedorExperiencia = DB::table('experiencias')->where('id', $experienciaId)->value('proveedor_id');
+        $aplica = $experiencias->isNotEmpty()
+            ? $experiencias->contains((int) $experienciaId)
+            : ($cupon->proveedor_id === null || (int) $cupon->proveedor_id === (int) $proveedorExperiencia);
+        if (!$aplica) {
+            return [null, 'El cupón no aplica para esta experiencia.'];
+        }
+
+        if ($cupon->cantidad !== null && self::usos($cupon->id) >= (int) $cupon->cantidad) {
+            return [null, 'El cupón ya se agotó.'];
+        }
+
+        return [$cupon, null];
+    }
+
+    // Descuento del cupón sobre un valor (nunca mayor que el valor).
+    public static function descuentoSobre($cupon, $valor)
+    {
+        $descuento = $cupon->tipo === 'porcentaje'
+            ? round($valor * (float) $cupon->descuento / 100)
+            : (float) $cupon->valor;
+
+        return min(max($descuento, 0), $valor);
     }
 
     public static function eliminar($id)

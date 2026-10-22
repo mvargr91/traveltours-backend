@@ -38,7 +38,7 @@ class PortalRolesSeeder extends Seeder
     private const PERMISOS_PROVEEDOR = [
         'ListarExperiencia', 'CrearExperiencia', 'ModificarExperiencia',
         'ListarReserva', 'ModificarReserva',
-        'ListarResena', 'ListarDashboard',
+        'ListarResena', 'ListarDashboard', 'ListarReporte',
     ];
 
     public function run()
