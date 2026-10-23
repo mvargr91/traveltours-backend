@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
 use App\Services\PagoService;
+use App\Services\CobroProveedores;
+use App\Models\Finanzas\CuentaPasarela;
 use App\Models\Experiencias\ExperienciaPrecio;
 use App\Models\Turismo\Cupon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -129,11 +131,11 @@ class Reserva extends Model
             ->get();
     }
 
-    // Estado con el que nace una reserva según la modalidad de la experiencia (experiencias.modalidad_pago).
+    // Estado con el que nace una reserva según la modalidad de la experiencia: con pago en línea solo si su
+    // proveedor tiene una pasarela activa (si no, se reserva y el proveedor la confirma).
     public static function estadoInicial($experienciaId)
     {
-        $modalidad = DB::table('experiencias')->where('id', $experienciaId)->value('modalidad_pago');
-        return $modalidad === 'pago_en_linea' ? 'pendiente_pago' : 'pendiente';
+        return CuentaPasarela::modalidadEfectiva($experienciaId) === 'pago_en_linea' ? 'pendiente_pago' : 'pendiente';
     }
 
     public static function obtenerColeccionLigera($dto)
@@ -338,6 +340,7 @@ class Reserva extends Model
         if ($estadoAnterior !== $reserva->estado) {
             self::registrarHistorial($reserva->id, $estadoAnterior, $reserva->estado);
         }
+        CobroProveedores::sincronizarComision($reserva->id);
 
         $auditoriaDto = [
             'id_recurso' => $reserva->id,
@@ -372,6 +375,8 @@ class Reserva extends Model
         if ($estadoAnterior !== $estado) {
             self::registrarHistorial($id, $estadoAnterior, $estado);
         }
+        // Finalizar (o marcar no asistió) genera la comisión del proveedor; salir de esos estados la quita.
+        CobroProveedores::sincronizarComision($id);
 
         $auditoriaDto = [
             'id_recurso' => $reserva->id,
@@ -388,8 +393,9 @@ class Reserva extends Model
 
     public static function eliminar($id)
     {
-        // Si ocupaba cupos, vuelven a la fecha.
+        // Si ocupaba cupos, vuelven a la fecha; su comisión sin liquidar se quita (la liquidada queda con su ajuste).
         PagoService::devolverCupos($id);
+        CobroProveedores::sincronizarComision($id, true);
 
         $reserva = Reserva::find($id);
 

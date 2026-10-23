@@ -14,6 +14,7 @@ use App\Models\Turismo\Cupon;
 use App\Models\Seguridad\AuditoriaTabla;
 use App\Services\NotificadorReservas;
 use App\Services\PagoService;
+use App\Models\Finanzas\CuentaPasarela;
 
 /**
  * Reservas de invitados desde el portal (sin sesión).
@@ -50,6 +51,8 @@ class ReservaController extends Controller
             $experiencia = DB::table('experiencias')
                 ->where('id', $datos['experiencia_id'])
                 ->where('estado', 'publicada')
+                // Un proveedor suspendido por mora no recibe reservas nuevas (sus experiencias no se muestran).
+                ->whereNotIn('proveedor_id', DB::table('proveedores_turisticos')->where('suspendido_por_mora', true)->select('id'))
                 ->select('id', 'proveedor_id', 'precio_desde', 'idioma')
                 ->first();
 
@@ -228,7 +231,7 @@ class ReservaController extends Controller
                 'reservas.valor_total',
                 'reservas.valor_descuento_cupon',
                 'reservas.valor_pagado',
-                'experiencias.modalidad_pago',
+                CuentaPasarela::sqlModalidadEfectiva(),
                 'experiencias.porcentaje_abono',
                 'reservas.nombre',
                 'reservas.correo',

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
+use App\Services\CobroProveedores;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class ProveedorTuristico extends Model
@@ -120,6 +121,8 @@ class ProveedorTuristico extends Model
                 'proveedores_turisticos.verificado_en',
                 'proveedores_turisticos.verificado_por',
                 'proveedores_turisticos.estado',
+                'proveedores_turisticos.es_plataforma',
+                'proveedores_turisticos.suspendido_por_mora',
                 'proveedores_turisticos.usuario_creacion_id',
                 'proveedores_turisticos.usuario_creacion_nombre',
                 'proveedores_turisticos.usuario_modificacion_id',
@@ -212,6 +215,8 @@ class ProveedorTuristico extends Model
             'verificado_en' => $proveedor->verificado_en,
             'verificado_por' => $proveedor->verificado_por,
             'estado' => $proveedor->estado,
+            'es_plataforma' => (bool) $proveedor->es_plataforma,
+            'suspendido_por_mora' => (bool) $proveedor->suspendido_por_mora,
             'usuario_creacion_id' => $proveedor->usuario_creacion_id,
             'usuario_creacion_nombre' => $proveedor->usuario_creacion_nombre,
             'usuario_modificacion_id' => $proveedor->usuario_modificacion_id,
@@ -277,6 +282,9 @@ class ProveedorTuristico extends Model
         if (isset($dto['categorias']) && is_array($dto['categorias'])) {
             self::sincronizarCategorias($proveedor->id, $dto['categorias']);
         }
+        if ($proveedor->estado_verificacion === 'aprobado') {
+            CobroProveedores::asignarModeloPorDefecto($proveedor->id, $usuario);
+        }
 
         $auditoriaDto = [
             'id_recurso' => $proveedor->id,
@@ -309,6 +317,10 @@ class ProveedorTuristico extends Model
         if (!$guardado) {
             throw new Exception('Ocurrió un error al intentar verificar el proveedor turístico.');
         }
+        // Al aprobarse recibe el modelo de cobro por defecto (si aún no tiene uno).
+        if ($proveedor->estado_verificacion === 'aprobado') {
+            CobroProveedores::asignarModeloPorDefecto($proveedor->id, $usuario);
+        }
 
         $auditoriaDto = [
             'id_recurso' => $proveedor->id,
@@ -326,6 +338,9 @@ class ProveedorTuristico extends Model
     public static function eliminar($id)
     {
         $proveedor = ProveedorTuristico::find($id);
+        if ($proveedor->es_plataforma) {
+            throw new Exception('El proveedor de la plataforma no se puede eliminar: tiene los tours propios y la pasarela del administrador.');
+        }
 
         $auditoriaDto = [
             'id_recurso' => $proveedor->id,
@@ -351,6 +366,7 @@ class ProveedorTuristico extends Model
             ->leftJoin('destinos', 'destinos.id', '=', 'proveedores_turisticos.destino_id')
             ->where('proveedores_turisticos.id', $id)
             ->where('proveedores_turisticos.estado', 1)
+            ->where('proveedores_turisticos.suspendido_por_mora', false)
             ->select(
                 'proveedores_turisticos.id',
                 'proveedores_turisticos.nombre_comercial',

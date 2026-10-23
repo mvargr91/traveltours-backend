@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use App\Models\Finanzas\CuentaPasarela;
 use App\Services\ArchivosService;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
@@ -85,6 +86,9 @@ class ExperienciaController extends Controller
             }
             // El "precio desde" se calcula a partir de los precios.
             unset($datos['precio_desde']);
+            if ($error = $this->errorModalidadPago($datos)) {
+                return response(get_response_body([$error]), Response::HTTP_BAD_REQUEST);
+            }
 
             // El proveedor no puede autodestacarse ni autoverificarse; el estado va por cambiarEstado.
             if ($this->esProveedor()) {
@@ -115,6 +119,22 @@ class ExperienciaController extends Controller
             ArchivosService::revertir();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    // El pago en línea se cobra con la pasarela del proveedor: sin una activa no se puede ofrecer.
+    private function errorModalidadPago(array $datos)
+    {
+        if (($datos['modalidad_pago'] ?? null) !== 'pago_en_linea') {
+            return null;
+        }
+        // Si ya la tenía no se bloquea la edición: mientras no haya pasarela, el portal la ofrece como reserva.
+        if (isset($datos['id']) && DB::table('experiencias')->where('id', $datos['id'])->value('modalidad_pago') === 'pago_en_linea') {
+            return null;
+        }
+        $proveedorId = $this->esProveedor() ? $this->proveedorActualId() : ($datos['proveedor_id'] ?? null);
+        return CuentaPasarela::activaDe($proveedorId)
+            ? null
+            : 'Para ofrecer pago en línea, el proveedor necesita una pasarela de pago activa (Finanzas > Pasarelas de pago). Mientras tanto, usa la modalidad "Reserva".';
     }
 
     public function show($id)
@@ -180,6 +200,9 @@ class ExperienciaController extends Controller
             }
             // El "precio desde" se calcula a partir de los precios.
             unset($datos['precio_desde']);
+            if ($error = $this->errorModalidadPago($datos)) {
+                return response(get_response_body([$error]), Response::HTTP_BAD_REQUEST);
+            }
 
             if (!$this->experienciaEnAlcance($id)) {
                 return $this->respuestaSinAcceso();

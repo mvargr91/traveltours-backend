@@ -28,7 +28,9 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
-    // Pasarela de pagos de la instalación (pago en línea de experiencias): wompi | mercadopago.
+    // Pasarela de pagos de la instalación: wompi | mercadopago. Desde las pasarelas por proveedor, las llaves de
+    // cada cuenta se guardan cifradas en cuentas_pasarela (Finanzas > Pasarelas de pago); estas de .env solo las usa
+    // la migración 2026_10_23_000001 para crear la cuenta de la plataforma.
     'pagos' => [
         'pasarela' => env('PAGOS_PASARELA', 'wompi'),
     ],

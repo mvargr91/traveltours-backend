@@ -2,27 +2,26 @@
 
 namespace App\Services;
 
-use InvalidArgumentException;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Reservas\Reserva;
 use App\Models\Seguridad\AuditoriaTabla;
-use App\Services\Pagos\PasarelaPago;
-use App\Services\Pagos\WompiPasarela;
-use App\Services\Pagos\MercadoPagoPasarela;
+use App\Models\Finanzas\CuentaPasarela;
 
 /**
- * Pago en línea de reservas. La pasarela de la instalación se elige con PAGOS_PASARELA en .env; lo propio
- * de cada una (checkout, consulta, webhook) vive en App\Services\Pagos.
+ * Pago en línea de reservas. Cada proveedor cobra con su propia pasarela (cuentas_pasarela); los tours de la
+ * plataforma, con la del administrador. Lo propio de cada pasarela (checkout, consulta, webhook) vive en
+ * App\Services\Pagos.
  *
  * Flujo:
- *  1. iniciarPago(): registra un intento en `pagos` y devuelve la URL del checkout.
- *  2. El viajero paga en la pasarela y vuelve a /pago/resultado?id={transacción}.
+ *  1. iniciarPago(): registra un intento en `pagos` (con la cuenta del proveedor) y devuelve la URL del checkout.
+ *  2. El viajero paga en la pasarela y vuelve a /pago/resultado?id={transacción}&pasarela=...&cuenta=...
  *  3. La transacción llega por dos vías (cualquiera aplica el pago; la segunda no hace nada):
  *     - el portal pide consultarTransaccion() al volver (sirve en local sin webhook);
- *     - la pasarela envía el evento al webhook.
+ *     - la pasarela envía el evento al webhook de la cuenta.
  *  4. aplicarTransaccion(): si se aprueba, la reserva pasa a "aceptada" y se descuentan los cupos.
+ *     Las referencias de liquidaciones (cobro a proveedores) las aplica CobroProveedores.
  *
  * Abono: si la experiencia tiene porcentaje_abono, el viajero puede separar el cupo pagando solo esa parte
  * (la reserva queda aceptada con saldo pendiente) y pagar el saldo después. reservas.valor_pagado lleva la
@@ -30,10 +29,7 @@ use App\Services\Pagos\MercadoPagoPasarela;
  */
 class PagoService
 {
-    public const PASARELAS = [
-        'wompi' => WompiPasarela::class,
-        'mercadopago' => MercadoPagoPasarela::class,
-    ];
+    public const PASARELAS = CuentaPasarela::PASARELAS;
 
     // Pagos recibidos por fuera del portal y registrados a mano en la reserva (pagos.pasarela = "manual").
     public const MANUAL = 'manual';
@@ -43,31 +39,16 @@ class PagoService
     // Dinero devuelto al viajero (lo registra el administrador): va en `pagos` con este concepto y no suma a lo pagado.
     public const REEMBOLSO = 'reembolso';
 
-    // Pasarela indicada o, sin nombre, la activa de la instalación.
-    public static function pasarela($nombre = null): PasarelaPago
-    {
-        $nombre = $nombre ?: config('services.pagos.pasarela');
-        if (!isset(self::PASARELAS[$nombre])) {
-            throw new InvalidArgumentException("Pasarela de pagos desconocida: {$nombre}");
-        }
-        $clase = self::PASARELAS[$nombre];
-        return new $clase();
-    }
-
-    public static function configurado()
-    {
-        return isset(self::PASARELAS[config('services.pagos.pasarela')]) && self::pasarela()->configurada();
-    }
-
     /**
      * Lo que se puede pagar en línea ahora mismo: [concepto => monto].
      *  - pendiente_pago: "total" y, si la experiencia lo permite y aún no se ha pagado nada, "abono".
      *  - aceptada (pago en línea) con saldo: "saldo".
+     * $modalidad es la efectiva (CuentaPasarela::sqlModalidadEfectiva): sin pasarela activa no hay pago en línea.
      */
     public static function opcionesDePago($estado, $total, $pagado, $modalidad, $porcentajeAbono): array
     {
         $saldo = round((float) $total - (float) $pagado, 2);
-        if ($saldo <= 0) {
+        if ($saldo <= 0 || $modalidad !== 'pago_en_linea') {
             return [];
         }
         if ($estado === 'pendiente_pago') {
@@ -78,23 +59,27 @@ class PagoService
             }
             return $opciones + ['total' => $saldo];
         }
-        if ($estado === 'aceptada' && $modalidad === 'pago_en_linea') {
+        if ($estado === 'aceptada') {
             return ['saldo' => $saldo];
         }
         return [];
     }
 
-    // $monto y $concepto salen de opcionesDePago(), nunca del navegador.
+    // $monto y $concepto salen de opcionesDePago(), nunca del navegador. Cobra con la pasarela del proveedor.
     public static function iniciarPago($reservaId, $monto, $concepto = 'total')
     {
-        $pasarela = config('services.pagos.pasarela');
         $reserva = DB::table('reservas')->where('id', $reservaId)->first();
+        $cuenta = CuentaPasarela::activaDe($reserva->proveedor_id);
+        if (!$cuenta) {
+            throw new \Exception('El proveedor no tiene una pasarela de pago activa.');
+        }
         $montoCentavos = (int) round(((float) $monto) * 100);
         $referencia = $reserva->codigo_reserva . '-' . strtoupper(Str::random(6));
 
         DB::table('pagos')->insert([
             'reserva_id' => $reserva->id,
-            'pasarela' => $pasarela,
+            'pasarela' => $cuenta->pasarela,
+            'cuenta_pasarela_id' => $cuenta->id,
             'concepto' => $concepto,
             'referencia' => $referencia,
             'monto_centavos' => $montoCentavos,
@@ -104,16 +89,23 @@ class PagoService
             'updated_at' => now(),
         ]);
 
-        return ['url' => self::pasarela($pasarela)->crearCheckout($reserva, $referencia, $montoCentavos)];
+        return ['url' => $cuenta->pasarela()->crearCheckout([
+            'referencia' => $referencia,
+            'monto_centavos' => $montoCentavos,
+            'descripcion' => 'Reserva ' . $reserva->codigo_reserva,
+            'correo' => $reserva->correo,
+            'nombre' => $reserva->nombre,
+            'retorno_url' => $cuenta->urlRetorno(),
+            'notificacion_url' => $cuenta->urlEventos(),
+        ])];
     }
 
-    // Consulta la transacción en la pasarela y la aplica. Devuelve la transacción normalizada o null.
-    public static function consultarTransaccion($transaccionId, $pasarela = null)
+    // Consulta la transacción en la pasarela de la cuenta y la aplica. Devuelve la transacción normalizada o null.
+    public static function consultarTransaccion($transaccionId, CuentaPasarela $cuenta)
     {
-        $pasarela = $pasarela ?: config('services.pagos.pasarela');
-        $transaccion = self::pasarela($pasarela)->consultarTransaccion($transaccionId);
+        $transaccion = $cuenta->pasarela()->consultarTransaccion($transaccionId);
         if ($transaccion) {
-            self::aplicarTransaccion($transaccion, $pasarela);
+            self::aplicarTransaccion($transaccion, $cuenta);
         }
         return $transaccion;
     }
@@ -121,18 +113,24 @@ class PagoService
     /**
      * Registra el resultado de la transacción en `pagos` y, si se aprobó, confirma la reserva.
      * Es idempotente: el webhook y la consulta del portal pueden llegar ambos, en cualquier orden.
+     * Solo aplica pagos creados con esa misma cuenta: un proveedor no puede tocar los pagos de otro.
      */
-    public static function aplicarTransaccion(array $transaccion, $pasarela)
+    public static function aplicarTransaccion(array $transaccion, CuentaPasarela $cuenta)
     {
+        if (CobroProveedores::esReferenciaDeLiquidacion($transaccion['referencia'])) {
+            CobroProveedores::aplicarTransaccion($transaccion, $cuenta);
+            return;
+        }
+
         $estadoReservaAnterior = null;
         $reservaId = null;
         $confirmada = false;
-        $nombre = self::pasarela($pasarela)->nombre();
+        $nombre = $cuenta->pasarela()->nombre();
 
-        DB::transaction(function () use ($transaccion, $pasarela, $nombre, &$estadoReservaAnterior, &$reservaId, &$confirmada) {
+        DB::transaction(function () use ($transaccion, $cuenta, $nombre, &$estadoReservaAnterior, &$reservaId, &$confirmada) {
             $pago = DB::table('pagos')
                 ->where('referencia', $transaccion['referencia'])
-                ->where('pasarela', $pasarela)
+                ->where('cuenta_pasarela_id', $cuenta->id)
                 ->lockForUpdate()
                 ->first();
             if (!$pago) {
@@ -204,6 +202,7 @@ class PagoService
         });
 
         if ($reservaId) {
+            CobroProveedores::sincronizarComision($reservaId);
             $confirmada
                 ? NotificadorReservas::estadoCambiado($reservaId, $estadoReservaAnterior)
                 : NotificadorReservas::pagoRecibido($reservaId);
@@ -392,6 +391,8 @@ class PagoService
             'recurso_original' => $original,
             'recurso_resultante' => json_encode(DB::table('reservas')->where('id', $reserva->id)->first()),
         ]);
+        // Lo pagado y lo reembolsado cambian la base de la comisión del proveedor.
+        CobroProveedores::sincronizarComision($reserva->id);
     }
 
     /**

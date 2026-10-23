@@ -48,6 +48,12 @@ class TurismoMenuSeeder extends Seeder
             ['Promociones', '/promociones', 'local_offer', 'Promocion'],
             ['Envíos de correo', '/envios-correo', 'forward_to_inbox', 'EnvioCorreo', ['Listar', 'Crear']],
         ]],
+        // Pasarela de pago de cada proveedor y cobro de la plataforma a los proveedores.
+        'Finanzas' => ['account_balance', 14, [
+            ['Pasarelas de pago', '/pasarelas-pago', 'credit_card', 'CuentaPasarela'],
+            ['Modelos de cobro', '/modelos-cobro', 'request_quote', 'ModeloCobro', ['Listar', 'Modificar']],
+            ['Liquidaciones', '/liquidaciones', 'receipt_long', 'Liquidacion', ['Listar', 'Crear', 'Modificar']],
+        ]],
         'Parametrización' => ['tune', 90, [
             ['Parámetros', '/parametros-constantes', 'settings', 'ParametroConstante'],
             ['Parámetros de correo', '/parametros-correo', 'mail', 'ParametroCorreo'],
