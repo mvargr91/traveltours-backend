@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
+use App\Models\Finanzas\CuentaPasarela;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Experiencia extends Model
@@ -199,6 +200,8 @@ class Experiencia extends Model
             'capacidad_maxima' => $experiencia->capacidad_maxima,
             'modalidad_pago' => $experiencia->modalidad_pago,
             'porcentaje_abono' => $experiencia->porcentaje_abono,
+            // Sin pasarela activa del proveedor el portal la ofrece como reserva (ver CuentaPasarela::sqlModalidadEfectiva).
+            'pasarela_activa' => (bool) CuentaPasarela::activaDe($experiencia->proveedor_id),
             'punto_encuentro' => $experiencia->punto_encuentro,
             'direccion' => $experiencia->direccion,
             'latitud' => $experiencia->latitud,
@@ -337,12 +340,13 @@ class Experiencia extends Model
             ->where('experiencias.estado', 'publicada')
             ->where('destinos.estado', 1)
             ->where('proveedores_turisticos.estado', 1)
+            ->where('proveedores_turisticos.suspendido_por_mora', false)
             ->select(array_merge([
                 'experiencias.id',
                 'experiencias.nombre',
                 'experiencias.slug',
                 'experiencias.precio_desde',
-                'experiencias.modalidad_pago',
+                CuentaPasarela::sqlModalidadEfectiva(),
                 'experiencias.porcentaje_abono',
                 'experiencias.duracion',
                 'experiencias.duracion_dias',
@@ -473,6 +477,7 @@ class Experiencia extends Model
             ->join('proveedores_turisticos', 'proveedores_turisticos.id', '=', 'experiencias.proveedor_id')
             ->where('experiencias.slug', $slug)
             ->where('experiencias.estado', 'publicada')
+            ->where('proveedores_turisticos.suspendido_por_mora', false)
             ->select(array_merge([
                 'experiencias.id',
                 'experiencias.nombre',
@@ -487,7 +492,7 @@ class Experiencia extends Model
                 'experiencias.duracion',
                 'experiencias.duracion_dias',
                 'experiencias.capacidad_maxima',
-                'experiencias.modalidad_pago',
+                CuentaPasarela::sqlModalidadEfectiva(),
                 'experiencias.porcentaje_abono',
                 'experiencias.punto_encuentro',
                 'experiencias.direccion',

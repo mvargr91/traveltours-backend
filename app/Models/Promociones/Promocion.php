@@ -211,6 +211,8 @@ class Promocion extends Model
                 ->join('destinos', 'destinos.id', '=', 'experiencias.destino_id')
                 ->where('promocion_experiencia.promocion_id', $promocion->id)
                 ->where('experiencias.estado', 'publicada')
+                // Las experiencias de un proveedor suspendido por mora no se muestran en el portal.
+                ->whereNotIn('experiencias.proveedor_id', DB::table('proveedores_turisticos')->where('suspendido_por_mora', true)->select('id'))
                 ->select(
                     'experiencias.id',
                     'experiencias.nombre',

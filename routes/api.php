@@ -10,6 +10,7 @@ use App\Http\Controllers\Promociones;
 use App\Http\Controllers\Proveedores;
 use App\Http\Controllers\Resenas;
 use App\Http\Controllers\Publico;
+use App\Http\Controllers\Finanzas;
 use App\Http\Controllers\BackupController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
@@ -49,8 +50,11 @@ Route::group(["prefix" => "publico", "middleware" => ["throttle:120,1"]], functi
     Route::get('/cupones/validar', [Publico\ReservaController::class, 'validarCupon'])->middleware('throttle:20,1,cupon-validar')->name('publico.cupones.validar');
     Route::get('/reservas/{codigo}', [Publico\ReservaController::class, 'show'])->middleware('throttle:20,1,reserva-consulta')->name('publico.reservas.show');
     // Pago en línea: iniciar el checkout, consultar al volver, retorno y webhook de cada pasarela.
+    // {cuenta} = cuentas_pasarela.codigo (la pasarela del proveedor); sin ella, la cuenta de la plataforma.
     Route::post('/reservas/{codigo}/pago', [Publico\PagoController::class, 'iniciar'])->middleware('throttle:10,1,pago-iniciar')->name('publico.pagos.iniciar');
     Route::get('/pagos/transaccion/{id}', [Publico\PagoController::class, 'transaccion'])->middleware('throttle:30,1,pago-consulta')->name('publico.pagos.transaccion');
+    Route::get('/pagos/{pasarela}/retorno/{cuenta}', [Publico\PagoController::class, 'retorno'])->where(['pasarela' => 'wompi|mercadopago', 'cuenta' => '[a-z0-9]{10,40}'])->name('publico.pagos.retorno.cuenta');
+    Route::post('/pagos/{pasarela}/eventos/{cuenta}', [Publico\PagoController::class, 'eventos'])->where(['pasarela' => 'wompi|mercadopago', 'cuenta' => '[a-z0-9]{10,40}'])->name('publico.pagos.eventos.cuenta');
     Route::get('/pagos/{pasarela}/retorno', [Publico\PagoController::class, 'retorno'])->where('pasarela', 'wompi|mercadopago')->name('publico.pagos.retorno');
     Route::post('/pagos/{pasarela}/eventos', [Publico\PagoController::class, 'eventos'])->where('pasarela', 'wompi|mercadopago')->name('publico.pagos.eventos');
     // URLs anteriores de Wompi: la de eventos es la registrada en su panel de comercios.
@@ -237,6 +241,41 @@ Route::group(['middleware' => ['auth:api']], function (){
     });
 
     // Envíos de correo a los clientes de un proveedor (el proveedor solo a los suyos)
+    // Finanzas: pasarela de pago de cada proveedor, modelo de cobro y liquidaciones (cobro mensual a proveedores).
+    Route::group(["prefix" => "pasarelas-pago"], function () {
+        Route::get('/', [Finanzas\CuentaPasarelaController::class, 'index'])->name('pasarelas-pago.index')->middleware('permission:ListarCuentaPasarela');
+        Route::get('/catalogo', [Finanzas\CuentaPasarelaController::class, 'catalogo'])->name('pasarelas-pago.catalogo')->middleware('permission:ListarCuentaPasarela');
+        Route::post('/', [Finanzas\CuentaPasarelaController::class, 'store'])->name('pasarelas-pago.store')->middleware(['permission:CrearCuentaPasarela', 'throttle:10,1,pasarela-guardar']);
+        Route::get('/{id}', [Finanzas\CuentaPasarelaController::class, 'show'])->whereNumber('id')->name('pasarelas-pago.show')->middleware('permission:ListarCuentaPasarela');
+        Route::put('/{id}', [Finanzas\CuentaPasarelaController::class, 'update'])->whereNumber('id')->name('pasarelas-pago.update')->middleware(['permission:ModificarCuentaPasarela', 'throttle:10,1,pasarela-guardar']);
+        Route::put('/{id}/probar', [Finanzas\CuentaPasarelaController::class, 'probar'])->whereNumber('id')->middleware(['permission:ModificarCuentaPasarela', 'throttle:10,1,pasarela-probar'])->name('pasarelas-pago.probar');
+        Route::put('/{id}/estado', [Finanzas\CuentaPasarelaController::class, 'cambiarEstado'])->whereNumber('id')->name('pasarelas-pago.estado')->middleware('permission:ModificarCuentaPasarela');
+        Route::delete('/{id}', [Finanzas\CuentaPasarelaController::class, 'destroy'])->whereNumber('id')->name('pasarelas-pago.delete')->middleware('permission:EliminarCuentaPasarela');
+    });
+
+    Route::group(["prefix" => "modelos-cobro"], function () {
+        Route::get('/', [Finanzas\ModeloCobroController::class, 'index'])->name('modelos-cobro.index')->middleware('permission:ListarModeloCobro');
+        Route::get('/{id}', [Finanzas\ModeloCobroController::class, 'show'])->whereNumber('id')->name('modelos-cobro.show')->middleware('permission:ListarModeloCobro');
+        Route::post('/', [Finanzas\ModeloCobroController::class, 'store'])->name('modelos-cobro.store')->middleware('permission:ModificarModeloCobro');
+        Route::delete('/{id}', [Finanzas\ModeloCobroController::class, 'destroy'])->whereNumber('id')->name('modelos-cobro.delete')->middleware('permission:ModificarModeloCobro');
+    });
+
+    Route::group(["prefix" => "liquidaciones"], function () {
+        Route::get('/', [Finanzas\LiquidacionController::class, 'index'])->name('liquidaciones.index')->middleware('permission:ListarLiquidacion');
+        Route::get('/resumen', [Finanzas\LiquidacionController::class, 'resumen'])->name('liquidaciones.resumen')->middleware('permission:ListarLiquidacion');
+        Route::post('/generar', [Finanzas\LiquidacionController::class, 'generar'])->name('liquidaciones.generar')->middleware('permission:CrearLiquidacion');
+        Route::get('/{id}', [Finanzas\LiquidacionController::class, 'show'])->whereNumber('id')->name('liquidaciones.show')->middleware('permission:ListarLiquidacion');
+        Route::put('/{id}/recalcular', [Finanzas\LiquidacionController::class, 'recalcular'])->whereNumber('id')->name('liquidaciones.recalcular')->middleware('permission:CrearLiquidacion');
+        Route::put('/{id}/emitir', [Finanzas\LiquidacionController::class, 'emitir'])->whereNumber('id')->name('liquidaciones.emitir')->middleware('permission:ModificarLiquidacion');
+        Route::put('/{id}/reabrir', [Finanzas\LiquidacionController::class, 'reabrir'])->whereNumber('id')->name('liquidaciones.reabrir')->middleware('permission:ModificarLiquidacion');
+        Route::put('/{id}/anular', [Finanzas\LiquidacionController::class, 'anular'])->whereNumber('id')->name('liquidaciones.anular')->middleware('permission:ModificarLiquidacion');
+        Route::delete('/{id}', [Finanzas\LiquidacionController::class, 'destroy'])->whereNumber('id')->name('liquidaciones.delete')->middleware('permission:CrearLiquidacion');
+        Route::post('/{id}/pagos', [Finanzas\LiquidacionController::class, 'registrarPago'])->whereNumber('id')->name('liquidaciones.pagos.registrar')->middleware('permission:ModificarLiquidacion');
+        Route::put('/{id}/pagos/{pagoId}/anular', [Finanzas\LiquidacionController::class, 'anularPago'])->whereNumber('id')->name('liquidaciones.pagos.anular')->middleware('permission:ModificarLiquidacion');
+        // Pago en línea con la pasarela de la plataforma (lo usa el proveedor).
+        Route::post('/{id}/pago', [Finanzas\LiquidacionController::class, 'pagar'])->whereNumber('id')->middleware(['permission:ListarLiquidacion', 'throttle:10,1,liquidacion-pago'])->name('liquidaciones.pagar');
+    });
+
     Route::group(["prefix" => "envios-correo"], function () {
         Route::get('/', [Turismo\EnvioCorreoController::class, 'index'])->name('envios-correo.index')->middleware('permission:ListarEnvioCorreo');
         Route::get('/clientes', [Turismo\EnvioCorreoController::class, 'clientes'])->name('envios-correo.clientes')->middleware('permission:CrearEnvioCorreo');

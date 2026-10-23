@@ -23,10 +23,10 @@ class AuditoriaTabla extends Model
     public static function crear($dto)
     {
         if (!isset($dto['externo'])){
-            $user = Auth::user();
-            $usuario = $user->usuario();
-            $dto['responsable_id'] = $usuario->id ?? ($dto['responsable_id'] ?? null);
-            $dto['responsable_nombre'] = $usuario->nombre ?? ($dto['responsable_nombre'] ?? null);
+            // Sin sesión (tareas programadas, webhooks): queda a nombre del sistema.
+            $usuario = Auth::user()?->usuario();
+            $dto['responsable_id'] = $usuario->id ?? ($dto['responsable_id'] ?? 0);
+            $dto['responsable_nombre'] = $usuario->nombre ?? ($dto['responsable_nombre'] ?? 'Sistema');
         } else {
             $dto['responsable_id'] =0;
             $dto['responsable_nombre'] = 'Cliente Externo';

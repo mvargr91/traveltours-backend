@@ -2,18 +2,23 @@
 
 namespace App\Services\Pagos;
 
+use Throwable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 
 /**
  * Mercado Pago (Checkout Pro): se crea una "preferencia" con el monto y Mercado Pago devuelve la URL del
- * checkout. El webhook solo trae el id del pago: el detalle siempre se consulta en la API con el access token.
+ * checkout. El webhook solo trae el id del pago: el detalle siempre se consulta en la API con el access token
+ * de la cuenta, así que un evento falso no puede aprobar nada.
  *
- * Llaves en .env: MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_WEBHOOK_SECRET.
+ * Credenciales de la cuenta (Tus integraciones > Credenciales): access token y, opcional, la clave secreta de
+ * webhooks. La URL de notificación va en cada preferencia: no hay que registrarla en el panel.
  */
 class MercadoPagoPasarela implements PasarelaPago
 {
+    private const API = 'https://api.mercadopago.com';
+
     // Estados de Mercado Pago -> estados de `pagos`.
     private const ESTADOS = [
         'approved' => 'aprobado',
@@ -27,33 +32,69 @@ class MercadoPagoPasarela implements PasarelaPago
         'charged_back' => 'anulado',
     ];
 
+    // Las credenciales de prueba y de producción usan la misma API: el ambiente es informativo.
+    public function __construct(private array $credenciales = [], private string $ambiente = 'sandbox')
+    {
+    }
+
     public function nombre(): string
     {
         return 'Mercado Pago';
     }
 
-    public function configurada(): bool
+    public static function campos(): array
     {
-        return !empty(config('services.mercadopago.access_token'));
+        return [
+            'access_token' => ['Access token', true, true, 'Tus integraciones > Credenciales. Empieza por APP_USR- o TEST-.'],
+            'webhook_secret' => ['Clave secreta de webhooks', false, true, 'Opcional: si la configuras, se valida la firma de cada notificación.'],
+        ];
     }
 
-    public function crearCheckout($reserva, string $referencia, int $montoCentavos): string
+    public function configurada(): bool
     {
-        $retorno = route('publico.pagos.retorno', ['pasarela' => 'mercadopago']);
+        return !empty($this->credenciales['access_token']);
+    }
+
+    public function probarConexion(): array
+    {
+        if (!$this->configurada()) {
+            return ['ok' => false, 'comercio' => null, 'error' => 'Falta el access token.'];
+        }
+        try {
+            $respuesta = $this->api()->get('/users/me');
+        } catch (Throwable $e) {
+            return ['ok' => false, 'comercio' => null, 'error' => 'No fue posible conectarse con Mercado Pago. Inténtalo de nuevo.'];
+        }
+        if (!$respuesta->successful()) {
+            return ['ok' => false, 'comercio' => null, 'error' => 'Mercado Pago no reconoce el access token.'];
+        }
+        $usuario = $respuesta->json();
+        $nombre = trim(($usuario['first_name'] ?? '') . ' ' . ($usuario['last_name'] ?? ''));
+        return ['ok' => true, 'comercio' => $usuario['nickname'] ?? ($nombre ?: null), 'error' => null];
+    }
+
+    public function crearCheckout(array $datos): string
+    {
+        $retorno = $datos['retorno_url'];
         $preferencia = [
             'items' => [[
-                'title' => 'Reserva ' . $reserva->codigo_reserva,
+                'title' => $datos['descripcion'],
                 'quantity' => 1,
-                'unit_price' => $montoCentavos / 100,
+                'unit_price' => $datos['monto_centavos'] / 100,
                 'currency_id' => 'COP',
             ]],
-            'payer' => ['email' => $reserva->correo, 'name' => $reserva->nombre],
-            'external_reference' => $referencia,
+            'payer' => ['email' => $datos['correo'], 'name' => $datos['nombre']],
+            'external_reference' => $datos['referencia'],
             'back_urls' => ['success' => $retorno, 'failure' => $retorno, 'pending' => $retorno],
+            'notification_url' => $datos['notificacion_url'],
         ];
-        // Mercado Pago solo acepta auto_return con URLs https: en local el viajero vuelve con el botón "Volver al sitio".
+        // Mercado Pago solo acepta auto_return y notification_url con URLs https: en local el pagador vuelve
+        // con el botón "Volver al sitio" y el pago se confirma con la consulta del portal.
         if (Str::startsWith($retorno, 'https://')) {
             $preferencia['auto_return'] = 'approved';
+        }
+        if (!Str::startsWith($datos['notificacion_url'], 'https://')) {
+            unset($preferencia['notification_url']);
         }
 
         $respuesta = $this->api()->post('/checkout/preferences', $preferencia)->throw();
@@ -90,12 +131,16 @@ class MercadoPagoPasarela implements PasarelaPago
      * Firma del webhook: cabecera x-signature (ts=...,v1=...), donde v1 es el HMAC-SHA256 con el secreto de
      * "id:{data.id};request-id:{x-request-id};ts:{ts};".
      * https://www.mercadopago.com.co/developers/es/docs/your-integrations/notifications/webhooks
+     * Sin clave secreta en la cuenta se acepta el evento: el pago igual se consulta en la API con el token.
      */
     public function verificarEvento(Request $request): bool
     {
-        $secreto = config('services.mercadopago.webhook_secret');
+        $secreto = $this->credenciales['webhook_secret'] ?? null;
+        if (!$secreto) {
+            return true;
+        }
         $firma = (string) $request->header('x-signature');
-        if (!$secreto || !preg_match('/ts=(\d+)/', $firma, $ts) || !preg_match('/v1=([a-f0-9]+)/i', $firma, $v1)) {
+        if (!preg_match('/ts=(\d+)/', $firma, $ts) || !preg_match('/v1=([a-f0-9]+)/i', $firma, $v1)) {
             return false;
         }
 
@@ -114,23 +159,24 @@ class MercadoPagoPasarela implements PasarelaPago
     public function transaccionDeEvento(Request $request): ?array
     {
         $id = $this->idDeEvento($request);
-        if ($request->input('type') !== 'payment' || !$id) {
+        $tipo = $request->input('type') ?? $request->query('topic');
+        if ($tipo !== 'payment' || !$id) {
             return null;
         }
         return $this->consultarTransaccion($id);
     }
 
-    // El id llega en la URL como ?data.id=... (PHP lo convierte en data_id) y en el cuerpo como data.id.
+    // El id llega en la URL como ?data.id=... (PHP lo convierte en data_id) o ?id=..., y en el cuerpo como data.id.
     private function idDeEvento(Request $request): ?string
     {
-        $id = $request->query('data_id') ?? $request->input('data.id');
+        $id = $request->query('data_id') ?? $request->input('data.id') ?? $request->query('id');
         return $id === null ? null : (string) $id;
     }
 
     private function api()
     {
         return Http::timeout(15)
-            ->baseUrl(config('services.mercadopago.api_url'))
-            ->withToken(config('services.mercadopago.access_token'));
+            ->baseUrl(self::API)
+            ->withToken((string) ($this->credenciales['access_token'] ?? ''));
     }
 }

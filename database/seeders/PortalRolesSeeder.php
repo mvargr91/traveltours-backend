@@ -40,6 +40,8 @@ class PortalRolesSeeder extends Seeder
         'ListarReserva', 'ModificarReserva',
         'ListarResena', 'ListarDashboard', 'ListarReporte',
         'ListarEnvioCorreo', 'CrearEnvioCorreo',
+        // Su pasarela de pago y sus liquidaciones (las ve y las paga; no las genera).
+        'ListarCuentaPasarela', 'CrearCuentaPasarela', 'ModificarCuentaPasarela', 'ListarLiquidacion',
     ];
 
     public function run()
