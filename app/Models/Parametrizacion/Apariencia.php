@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
+use App\Services\ArchivosService;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Personalización visual del sitio: una sola fila (id 1).
@@ -154,6 +156,60 @@ class Apariencia extends Model
                 ? (new Carbon($apariencia->updated_at))->format('Y-m-d H:i:s')
                 : null,
         ];
+    }
+
+    // Logo fijo de los correos cuando no se ha subido uno en Apariencia (o el subido no se puede usar).
+    private const LOGO_CORREO_DEFECTO = 'images/correo/logo.png';
+    private const NOMBRE_DEFECTO = 'Travel City LGTBIQ+';
+    private static ?array $logoCorreo = null;
+
+    /**
+     * Logo que se incrusta en los correos (emails.partials.logo): el logo principal subido en Apariencia o,
+     * sin él, el fijo de resources/images/correo. Devuelve [ruta absoluta, texto alternativo].
+     * Los clientes de correo (Outlook) no muestran WebP: un logo WebP se convierte a PNG una vez y se reutiliza.
+     * Se calcula una vez por petición o por trabajo de la cola.
+     */
+    public static function logoCorreo(): array
+    {
+        if (self::$logoCorreo !== null) {
+            return self::$logoCorreo;
+        }
+        $apariencia = self::registro();
+        $nombre = trim((string) ($apariencia->configuracion['marca']['nombre'] ?? '')) ?: self::NOMBRE_DEFECTO;
+        $ruta = resource_path(self::LOGO_CORREO_DEFECTO);
+
+        $subido = $apariencia->logo_principal;
+        $disco = Storage::disk(ArchivosService::PUBLICO);
+        if (ArchivosService::esLocal($subido) && $disco->exists($subido)) {
+            $archivo = $disco->path($subido);
+            $extension = strtolower(pathinfo($archivo, PATHINFO_EXTENSION));
+            if (in_array($extension, ['png', 'jpg', 'jpeg'], true)) {
+                $ruta = $archivo;
+            } elseif ($extension === 'webp') {
+                $ruta = self::webpAPng($archivo) ?? $ruta;
+            }
+        }
+        return self::$logoCorreo = [$ruta, $nombre];
+    }
+
+    // PNG del logo WebP en storage/app/correo (el nombre cambia si cambia el archivo). Null si no se puede convertir.
+    private static function webpAPng(string $archivo): ?string
+    {
+        $destino = storage_path('app/correo/logo-' . md5($archivo . filemtime($archivo)) . '.png');
+        if (is_file($destino)) {
+            return $destino;
+        }
+        if (!function_exists('imagecreatefromwebp') || !($imagen = @imagecreatefromwebp($archivo))) {
+            return null;
+        }
+        if (!is_dir(dirname($destino))) {
+            @mkdir(dirname($destino), 0755, true);
+        }
+        imagealphablending($imagen, false);
+        imagesavealpha($imagen, true);
+        $ok = @imagepng($imagen, $destino);
+        imagedestroy($imagen);
+        return $ok ? $destino : null;
     }
 
     // Número de WhatsApp del portal: parámetro WHATSAPP_NUMERO, solo dígitos. Vacío o inactivo = sin botón.
