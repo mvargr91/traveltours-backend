@@ -68,11 +68,10 @@
                 </tr>
                 <tr>
                     <td style="padding:24px 32px 28px; font-size:12px; color:#8A949C; line-height:1.5;">
-                        Este aviso nunca incluye tus llaves. Nadie de Travel City te las pedirá por correo.
+                        Este aviso nunca incluye tus llaves. Nadie de {{ \App\Models\Parametrizacion\Apariencia::nombreMarca() }} te las pedirá por correo.
                     </td>
                 </tr>
             </table>
-            <p style="margin:16px 0 0; font-size:12px; color:#8A949C;">© {{ date('Y') }} Travel City LGTBIQ+ · Explora Colombia con libertad</p>
         </td>
     </tr>
 </table>

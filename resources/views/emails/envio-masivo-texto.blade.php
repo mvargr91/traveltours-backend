@@ -2,7 +2,7 @@
 {!! $textoPlano !!}
 
 --
-Recibes este correo de {{ $proveedorNombre }} porque reservaste con ellos en Travel City.
+Recibes este correo de {{ $proveedorNombre }} porque reservaste con ellos en {{ \App\Models\Parametrizacion\Apariencia::nombreMarca() }}.
 @if ($proveedorCorreo)
 Puedes responder este correo para escribirles directamente.
 @endif
