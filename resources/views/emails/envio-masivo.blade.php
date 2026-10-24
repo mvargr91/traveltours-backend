@@ -11,9 +11,9 @@
     <tr>
         <td align="center">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; background:#FFFFFF; border-radius:12px; overflow:hidden;">
-                {{-- Franja arcoíris del logo --}}
+                {{-- Línea superior con el color primario de la marca --}}
                 <tr>
-                    <td style="height:6px; font-size:0; line-height:0; background:#E40303; background-image:linear-gradient(90deg,#E40303,#FF8C00,#FFED00,#008026,#24408E,#732982);">&nbsp;</td>
+                    <td style="height:6px; font-size:0; line-height:0; background:{{ \App\Models\Parametrizacion\Apariencia::coloresCorreo()['primario'] }};">&nbsp;</td>
                 </tr>
                 <tr>
                     <td align="center" style="padding:24px 24px 8px;">
@@ -27,9 +27,9 @@
                 </tr>
                 <tr>
                     <td style="padding:24px 32px 28px; font-size:12px; color:#8A949C; line-height:1.5;">
-                        Recibes este correo de <strong>{{ $proveedorNombre }}</strong> porque reservaste con ellos en {{ \App\Models\Parametrizacion\Apariencia::nombreMarca() }}.
+                        Recibes este correo porque reservaste en <strong>{{ \App\Models\Parametrizacion\Apariencia::nombreMarca() }}</strong>.
                         @if ($proveedorCorreo)
-                            Puedes responder este correo para escribirles directamente.
+                            Si tienes preguntas, puedes responder este correo.
                         @endif
                         Si no deseas recibir más correos como este, responde con el asunto "Darme de baja".
                     </td>

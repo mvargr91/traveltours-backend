@@ -1,7 +1,6 @@
 @php
-    // Colores de la marca (frontend: src/shared/constants/Marca.jsx).
-    $azul = '#00A1CC';
-    $azulOscuro = '#1C4A59';
+    // Colores de la marca: Parametrización > Apariencia (primario y primario oscuro del portal).
+    ['primario' => $azul, 'oscuro' => $azulOscuro, 'claro' => $azulClaro] = \App\Models\Parametrizacion\Apariencia::coloresCorreo();
     $filas = array_filter([
         'Proveedor' => $proveedorNombre,
         'Cambio' => ucfirst($datos['accion']),
@@ -23,9 +22,9 @@
     <tr>
         <td align="center">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; background:#FFFFFF; border-radius:12px; overflow:hidden;">
-                {{-- Franja arcoíris del logo --}}
+                {{-- Línea superior con el color primario de la marca --}}
                 <tr>
-                    <td style="height:6px; font-size:0; line-height:0; background:#E40303; background-image:linear-gradient(90deg,#E40303,#FF8C00,#FFED00,#008026,#24408E,#732982);">&nbsp;</td>
+                    <td style="height:6px; font-size:0; line-height:0; background:{{ $azul }};">&nbsp;</td>
                 </tr>
                 <tr>
                     <td align="center" style="padding:24px 24px 8px;">

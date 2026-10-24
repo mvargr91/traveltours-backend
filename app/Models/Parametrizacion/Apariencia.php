@@ -202,6 +202,29 @@ class Apariencia extends Model
         return $nombre ?: (trim((string) config('mail.from.name')) ?: self::NOMBRE_DEFECTO);
     }
 
+    // Colores de los correos sin personalizar (los del portal por defecto).
+    private const PRIMARIO_DEFECTO = '#00A1CC';
+    private const PRIMARIO_OSCURO_DEFECTO = '#1C4A59';
+
+    /**
+     * Colores de los correos tomados de Apariencia > Portal: primario (botones, línea superior, bordes),
+     * oscuro (títulos) y claro (fondo suave del recuadro del código, el primario mezclado con blanco).
+     */
+    public static function coloresCorreo(): array
+    {
+        $portal = self::registro()->configuracion['portal'] ?? [];
+        $hex = fn ($valor, $defecto) => is_string($valor) && preg_match('/^#[0-9a-fA-F]{6}$/', $valor) ? $valor : $defecto;
+        $primario = $hex($portal['primario'] ?? null, self::PRIMARIO_DEFECTO);
+        $oscuro = $hex($portal['primarioOscuro'] ?? null, self::PRIMARIO_OSCURO_DEFECTO);
+
+        // 92 % blanco + 8 % primario.
+        $claro = '#' . implode('', array_map(
+            fn ($canal) => str_pad(dechex((int) round(255 * 0.92 + hexdec($canal) * 0.08)), 2, '0', STR_PAD_LEFT),
+            str_split(substr($primario, 1), 2)
+        ));
+        return ['primario' => $primario, 'oscuro' => $oscuro, 'claro' => $claro];
+    }
+
     // PNG del logo WebP en storage/app/correo (el nombre cambia si cambia el archivo). Null si no se puede convertir.
     private static function webpAPng(string $archivo): ?string
     {
