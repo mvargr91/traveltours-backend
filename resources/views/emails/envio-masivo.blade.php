@@ -27,7 +27,7 @@
                 </tr>
                 <tr>
                     <td style="padding:24px 32px 28px; font-size:12px; color:#8A949C; line-height:1.5;">
-                        Recibes este correo de <strong>{{ $proveedorNombre }}</strong> porque reservaste con ellos en Travel City.
+                        Recibes este correo de <strong>{{ $proveedorNombre }}</strong> porque reservaste con ellos en {{ \App\Models\Parametrizacion\Apariencia::nombreMarca() }}.
                         @if ($proveedorCorreo)
                             Puedes responder este correo para escribirles directamente.
                         @endif
@@ -35,7 +35,6 @@
                     </td>
                 </tr>
             </table>
-            <p style="margin:16px 0 0; font-size:12px; color:#8A949C;">© {{ date('Y') }} Travel City LGTBIQ+ · Explora Colombia con libertad</p>
         </td>
     </tr>
 </table>

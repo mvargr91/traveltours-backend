@@ -175,7 +175,7 @@ class Apariencia extends Model
             return self::$logoCorreo;
         }
         $apariencia = self::registro();
-        $nombre = trim((string) ($apariencia->configuracion['marca']['nombre'] ?? '')) ?: self::NOMBRE_DEFECTO;
+        $nombre = self::nombreMarca();
         $ruta = resource_path(self::LOGO_CORREO_DEFECTO);
 
         $subido = $apariencia->logo_principal;
@@ -190,6 +190,16 @@ class Apariencia extends Model
             }
         }
         return self::$logoCorreo = [$ruta, $nombre];
+    }
+
+    /**
+     * Nombre de la marca (Apariencia > Marca > Nombre) para los correos: remitente de los envíos masivos y textos
+     * que nombran a la plataforma. Sin él, el nombre del remitente de .env (MAIL_FROM_NAME).
+     */
+    public static function nombreMarca(): string
+    {
+        $nombre = trim((string) (self::registro()->configuracion['marca']['nombre'] ?? ''));
+        return $nombre ?: (trim((string) config('mail.from.name')) ?: self::NOMBRE_DEFECTO);
     }
 
     // PNG del logo WebP en storage/app/correo (el nombre cambia si cambia el archivo). Null si no se puede convertir.

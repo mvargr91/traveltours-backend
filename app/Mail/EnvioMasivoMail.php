@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Services\EnviosCorreo;
+use App\Models\Parametrizacion\Apariencia;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -25,10 +26,10 @@ class EnvioMasivoMail extends Mailable
 
     public function build()
     {
-        // Sale desde la cuenta del sistema con el nombre del proveedor; las respuestas le llegan a él.
-        // Lleva versión HTML y de texto plano (los filtros de spam desconfían de los correos solo HTML).
+        // Sale a nombre de la plataforma (marca de Apariencia) desde la cuenta del sistema; las respuestas le
+        // llegan al proveedor. Lleva versión HTML y de texto plano (los filtros de spam desconfían de los solo HTML).
         $correo = $this->subject($this->asunto)
-            ->from(config('mail.from.address'), $this->proveedorNombre)
+            ->from(config('mail.from.address'), Apariencia::nombreMarca())
             ->view('emails.envio-masivo')
             ->text('emails.envio-masivo-texto', ['textoPlano' => EnviosCorreo::textoPlano($this->cuerpo)]);
 

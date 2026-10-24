@@ -99,7 +99,6 @@
                     </td>
                 </tr>
             </table>
-            <p style="margin:16px 0 0; font-size:12px; color:#8A949C;">© {{ date('Y') }} Travel City LGTBIQ+ · Explora Colombia con libertad</p>
         </td>
     </tr>
 </table>
