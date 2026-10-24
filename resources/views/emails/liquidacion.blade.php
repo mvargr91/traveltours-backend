@@ -1,7 +1,6 @@
 @php
-    // Colores de la marca (frontend: src/shared/constants/Marca.jsx).
-    $azul = '#00A1CC';
-    $azulOscuro = '#1C4A59';
+    // Colores de la marca: Parametrización > Apariencia (primario y primario oscuro del portal).
+    ['primario' => $azul, 'oscuro' => $azulOscuro, 'claro' => $azulClaro] = \App\Models\Parametrizacion\Apariencia::coloresCorreo();
     $texto = '#1F2933';
     $colores = ['Borrador' => '#3B3838', 'Emitida' => '#FE8500', 'Vencida' => '#D32F2F', 'Pagada' => '#2E7D32', 'Anulada' => '#3B3838'];
     $l = $liquidacion;
@@ -28,9 +27,9 @@
     <tr>
         <td align="center">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; background:#FFFFFF; border-radius:12px; overflow:hidden;">
-                {{-- Franja arcoíris del logo --}}
+                {{-- Línea superior con el color primario de la marca --}}
                 <tr>
-                    <td style="height:6px; font-size:0; line-height:0; background:#E40303; background-image:linear-gradient(90deg,#E40303,#FF8C00,#FFED00,#008026,#24408E,#732982);">&nbsp;</td>
+                    <td style="height:6px; font-size:0; line-height:0; background:{{ $azul }};">&nbsp;</td>
                 </tr>
                 <tr>
                     <td align="center" style="padding:24px 24px 8px;">
@@ -46,7 +45,7 @@
                 {{-- Código y estado --}}
                 <tr>
                     <td style="padding:0 32px;">
-                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px dashed {{ $azul }}; border-radius:10px; background:#EEF8FB;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px dashed {{ $azul }}; border-radius:10px; background:{{ $azulClaro }};">
                             <tr>
                                 <td style="padding:14px 16px;">
                                     <div style="font-size:12px; color:#5F6B76;">Liquidación</div>

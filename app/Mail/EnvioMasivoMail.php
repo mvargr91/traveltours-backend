@@ -34,7 +34,8 @@ class EnvioMasivoMail extends Mailable
             ->text('emails.envio-masivo-texto', ['textoPlano' => EnviosCorreo::textoPlano($this->cuerpo)]);
 
         if ($this->proveedorCorreo) {
-            $correo->replyTo($this->proveedorCorreo, $this->proveedorNombre);
+            // Solo la dirección: el correo se presenta con la marca, no con el nombre del proveedor.
+            $correo->replyTo($this->proveedorCorreo);
         }
 
         // Correo masivo: Gmail y Outlook esperan una forma de darse de baja (botón "Anular suscripción").
