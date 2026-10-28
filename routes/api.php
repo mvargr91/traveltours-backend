@@ -253,6 +253,8 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::delete('/{id}', [Finanzas\CuentaPasarelaController::class, 'destroy'])->whereNumber('id')->name('pasarelas-pago.delete')->middleware('permission:EliminarCuentaPasarela');
     });
 
+    Route::get('/control-proveedores', [Finanzas\ControlProveedorController::class, 'index'])->name('control-proveedores.index')->middleware('permission:ListarControlProveedor');
+
     Route::group(["prefix" => "modelos-cobro"], function () {
         Route::get('/', [Finanzas\ModeloCobroController::class, 'index'])->name('modelos-cobro.index')->middleware('permission:ListarModeloCobro');
         Route::get('/{id}', [Finanzas\ModeloCobroController::class, 'show'])->whereNumber('id')->name('modelos-cobro.show')->middleware('permission:ListarModeloCobro');

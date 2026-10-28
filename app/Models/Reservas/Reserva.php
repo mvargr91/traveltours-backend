@@ -355,7 +355,8 @@ class Reserva extends Model
         return Reserva::cargar($reserva->id);
     }
 
-    public static function cambiarEstado($id, $estado)
+    // $responsable: quién hizo el cambio cuando no es el usuario de la sesión (ej. el cierre automático).
+    public static function cambiarEstado($id, $estado, $responsable = null)
     {
         // Al aceptarse la reserva toma sus cupos de la fecha (si no hay suficientes, no se puede aceptar);
         // al cancelarse, rechazarse o volver a pendiente los devuelve.
@@ -373,7 +374,7 @@ class Reserva extends Model
             throw new Exception('Ocurrió un error al intentar cambiar el estado de la reserva.');
         }
         if ($estadoAnterior !== $estado) {
-            self::registrarHistorial($id, $estadoAnterior, $estado);
+            self::registrarHistorial($id, $estadoAnterior, $estado, $responsable);
         }
         // Finalizar (o marcar no asistió) genera la comisión del proveedor; salir de esos estados la quita.
         CobroProveedores::sincronizarComision($id);
