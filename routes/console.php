@@ -45,3 +45,17 @@ Artisan::command('liquidaciones:revisar-mora', function () {
     $this->info("Avisos de vencimiento: {$avisos} · proveedores suspendidos: {$suspendidos}");
 })->purpose('Avisa las liquidaciones vencidas y suspende a los proveedores en mora');
 Schedule::command('liquidaciones:revisar-mora')->dailyAt('07:00')->withoutOverlapping();
+
+// Reservas aceptadas cuyo tour ya pasó: se finalizan solas (generan la comisión). RESERVAS_DIAS_AUTOFINALIZAR = 0 lo apaga.
+Artisan::command('reservas:finalizar', function () {
+    /** @var ClosureCommand $this */
+    $this->info('Reservas finalizadas: ' . \App\Services\ControlProveedores::finalizarVencidas());
+})->purpose('Finaliza las reservas aceptadas cuyo tour ya terminó');
+Schedule::command('reservas:finalizar')->dailyAt('03:00')->withoutOverlapping();
+
+// Los lunes, el resumen del control de proveedores a la administración (CONTROL_RESUMEN_SEMANAL = NO lo apaga).
+Artisan::command('control:resumen-semanal', function () {
+    /** @var ClosureCommand $this */
+    $this->info('Resúmenes enviados: ' . \App\Services\ControlProveedores::enviarResumenSemanal());
+})->purpose('Envía a la administración el resumen semanal del control de proveedores');
+Schedule::command('control:resumen-semanal')->weeklyOn(1, '07:30')->withoutOverlapping();

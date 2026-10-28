@@ -53,6 +53,7 @@ class TurismoMenuSeeder extends Seeder
             ['Pasarelas de pago', '/pasarelas-pago', 'credit_card', 'CuentaPasarela'],
             ['Modelos de cobro', '/modelos-cobro', 'request_quote', 'ModeloCobro', ['Listar', 'Modificar']],
             ['Liquidaciones', '/liquidaciones', 'receipt_long', 'Liquidacion', ['Listar', 'Crear', 'Modificar']],
+            ['Control de proveedores', '/control-proveedores', 'fact_check', 'ControlProveedor', ['Listar']],
         ]],
         'Parametrización' => ['tune', 90, [
             ['Parámetros', '/parametros-constantes', 'settings', 'ParametroConstante'],
