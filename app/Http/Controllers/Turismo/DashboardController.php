@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use App\Models\Reservas\Reserva;
 use App\Services\PagoService;
+use App\Services\Monedas;
 
 /**
  * Inicio > Dashboard: indicadores del negocio.
@@ -51,7 +52,7 @@ class DashboardController extends Controller
                 'ingresos_mes' => $this->ingresos($proveedorId, $inicioMes, $hoy->toDateString()),
                 'saldo_por_cobrar' => (float) $reservas()->whereIn('estado', Reserva::ESTADOS_CON_CUPO)
                     ->whereColumn('valor_total', '>', 'valor_pagado')
-                    ->sum(DB::raw('valor_total - valor_pagado')),
+                    ->sum(DB::raw('(valor_total - valor_pagado) * ' . Monedas::sqlFactorPesos('moneda'))),
                 'calificacion_promedio' => $resenas->promedio !== null ? (float) $resenas->promedio : null,
                 'total_resenas' => (int) $resenas->total,
             ];
@@ -89,7 +90,7 @@ class DashboardController extends Controller
                     ->whereIn('reservas.estado', Reserva::ESTADOS_CON_CUPO)
                     ->where('reservas.created_at', '>=', $hoy->copy()->subDays(90)->toDateString())
                     ->groupBy('experiencias.id', 'experiencias.nombre')
-                    ->selectRaw('experiencias.id, experiencias.nombre, COUNT(*) as reservas, SUM(reservas.cantidad_personas) as personas, SUM(reservas.valor_total) as valor')
+                    ->selectRaw('experiencias.id, experiencias.nombre, COUNT(*) as reservas, SUM(reservas.cantidad_personas) as personas, SUM(reservas.valor_total * ' . Monedas::sqlFactorPesos('reservas.moneda') . ') as valor')
                     ->orderByDesc('reservas')
                     ->limit(5)->get(),
                 'resenas_recientes' => DB::table('resenas')
@@ -117,8 +118,8 @@ class DashboardController extends Controller
             ->where('pagos.estado', 'aprobado')
             ->whereRaw('COALESCE(pagos.fecha_pago, DATE(pagos.updated_at)) BETWEEN ? AND ?', [$desde, $hasta])
             ->selectRaw(
-                'SUM(CASE WHEN pagos.concepto = ? THEN 0 ELSE pagos.monto_centavos END) as cobrado, ' .
-                'SUM(CASE WHEN pagos.concepto = ? THEN pagos.monto_centavos ELSE 0 END) as reembolsado',
+                'SUM(CASE WHEN pagos.concepto = ? THEN 0 ELSE pagos.monto_centavos * ' . Monedas::sqlFactorPesos('pagos.moneda') . ' END) as cobrado, ' .
+                'SUM(CASE WHEN pagos.concepto = ? THEN pagos.monto_centavos * ' . Monedas::sqlFactorPesos('pagos.moneda') . ' ELSE 0 END) as reembolsado',
                 [PagoService::REEMBOLSO, PagoService::REEMBOLSO]
             )
             ->first();
@@ -134,7 +135,7 @@ class DashboardController extends Controller
             ->where('created_at', '>=', $desde->toDateString())
             ->whereNotIn('estado', ['rechazada', 'cancelada'])
             ->groupByRaw("DATE_FORMAT(created_at, '%Y-%m')")
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as mes, COUNT(*) as reservas, SUM(valor_total) as valor")
+            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as mes, COUNT(*) as reservas, SUM(valor_total * " . Monedas::sqlFactorPesos('moneda') . ") as valor")
             ->get()
             ->keyBy('mes');
 
@@ -155,7 +156,7 @@ class DashboardController extends Controller
             ->when($proveedorId, fn ($q) => $q->where('reservas.proveedor_id', $proveedorId))
             ->select(
                 'reservas.id', 'reservas.codigo_reserva', 'reservas.fecha', 'reservas.hora_inicio', 'reservas.nombre',
-                'reservas.cantidad_personas', 'reservas.valor_total', 'reservas.valor_pagado', 'reservas.estado',
+                'reservas.cantidad_personas', 'reservas.valor_total', 'reservas.moneda', 'reservas.valor_pagado', 'reservas.estado',
                 'experiencias.nombre as experiencia_nombre',
             );
     }

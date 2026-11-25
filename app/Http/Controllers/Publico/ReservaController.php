@@ -229,6 +229,7 @@ class ReservaController extends Controller
                 'reservas.hora_inicio',
                 'reservas.cantidad_personas',
                 'reservas.valor_total',
+                'reservas.moneda',
                 'reservas.valor_descuento_cupon',
                 'reservas.valor_pagado',
                 CuentaPasarela::sqlModalidadEfectiva(),

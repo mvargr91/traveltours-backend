@@ -69,6 +69,10 @@ class PagoService
     public static function iniciarPago($reservaId, $monto, $concepto = 'total')
     {
         $reserva = DB::table('reservas')->where('id', $reservaId)->first();
+        // Las pasarelas cobran solo en pesos (ver Monedas).
+        if ($reserva->moneda !== Monedas::COP) {
+            throw new \Exception('Las reservas en dólares no se pagan en línea: el pago se acuerda directamente con el proveedor.');
+        }
         $cuenta = CuentaPasarela::activaDe($reserva->proveedor_id);
         if (!$cuenta) {
             throw new \Exception('El proveedor no tiene una pasarela de pago activa.');
@@ -278,7 +282,7 @@ class PagoService
         $saldo = round((float) $reserva->valor_total - (float) $reserva->valor_pagado, 2);
         $valor = round((float) $datos['valor'], 2);
         if ($valor > $saldo) {
-            throw new \Exception('El pago supera el saldo de la reserva ($ ' . number_format($saldo, 0, ',', '.') . ').');
+            throw new \Exception('El pago supera el saldo de la reserva (' . Monedas::formato($saldo, $reserva->moneda) . ').');
         }
 
         DB::table('pagos')->insert([
@@ -287,7 +291,7 @@ class PagoService
             'concepto' => $valor < $saldo ? 'abono' : ((float) $reserva->valor_pagado > 0 ? 'saldo' : 'total'),
             'referencia' => $reserva->codigo_reserva . '-M' . strtoupper(Str::random(6)),
             'monto_centavos' => (int) round($valor * 100),
-            'moneda' => 'COP',
+            'moneda' => $reserva->moneda,
             'estado' => 'aprobado',
             'metodo_pago' => $datos['metodo_pago'],
             'fecha_pago' => $datos['fecha_pago'],
@@ -344,7 +348,7 @@ class PagoService
             throw new \Exception('Esta reserva no tiene pagos por reembolsar.');
         }
         if ($valor > $disponible) {
-            throw new \Exception('El reembolso supera lo pagado por el viajero ($ ' . number_format($disponible, 0, ',', '.') . ').');
+            throw new \Exception('El reembolso supera lo pagado por el viajero (' . Monedas::formato($disponible, $reserva->moneda) . ').');
         }
 
         DB::table('pagos')->insert([
@@ -353,7 +357,7 @@ class PagoService
             'concepto' => self::REEMBOLSO,
             'referencia' => $reserva->codigo_reserva . '-R' . strtoupper(Str::random(6)),
             'monto_centavos' => (int) round($valor * 100),
-            'moneda' => 'COP',
+            'moneda' => $reserva->moneda,
             'estado' => 'aprobado',
             'metodo_pago' => $datos['metodo_pago'],
             'fecha_pago' => $datos['fecha_pago'],

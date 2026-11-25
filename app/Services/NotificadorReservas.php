@@ -196,10 +196,10 @@ class NotificadorReservas
             '{fecha}' => $reserva->fecha,
             '{hora}' => $reserva->hora_inicio ? substr($reserva->hora_inicio, 0, 5) : '',
             '{personas}' => $reserva->cantidad_personas,
-            '{total}' => '$ ' . number_format((float) $reserva->valor_total, 0, ',', '.'),
-            '{pagado}' => '$ ' . number_format((float) $reserva->valor_pagado, 0, ',', '.'),
-            '{saldo}' => '$ ' . number_format(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), 0, ',', '.'),
-            '{reembolsado}' => '$ ' . number_format((float) $reserva->valor_reembolsado, 0, ',', '.'),
+            '{total}' => Monedas::formato($reserva->valor_total, $reserva->moneda),
+            '{pagado}' => Monedas::formato($reserva->valor_pagado, $reserva->moneda),
+            '{saldo}' => Monedas::formato(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), $reserva->moneda),
+            '{reembolsado}' => Monedas::formato($reserva->valor_reembolsado, $reserva->moneda),
             '{proveedor}' => $reserva->proveedor_nombre,
         ];
 
@@ -256,6 +256,7 @@ class NotificadorReservas
                 'reservas.hora_inicio',
                 'reservas.cantidad_personas',
                 'reservas.valor_total',
+                'reservas.moneda',
                 'reservas.valor_pagado',
                 'reservas.valor_reembolsado',
                 'reservas.nombre',

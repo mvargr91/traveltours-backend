@@ -14,6 +14,7 @@ use App\Services\CobroProveedores;
 use App\Models\Finanzas\CuentaPasarela;
 use App\Models\Experiencias\ExperienciaPrecio;
 use App\Models\Turismo\Cupon;
+use App\Services\Monedas;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Reserva extends Model
@@ -54,6 +55,16 @@ class Reserva extends Model
         'usuario_modificacion_nombre',
     ];
 
+    // La reserva queda en la moneda que tenía la experiencia al crearse (aunque la experiencia cambie después).
+    protected static function booted()
+    {
+        static::creating(function (Reserva $reserva) {
+            if (empty($reserva->moneda)) {
+                $reserva->moneda = DB::table('experiencias')->where('id', $reserva->experiencia_id)->value('moneda') ?? Monedas::COP;
+            }
+        });
+    }
+
     // Mismo cálculo que el portal: valor por persona según el tamaño del grupo × personas, menos la mejor
     // promoción vigente y, sobre lo que queda, el cupón. Lo usan las reservas del portal y las de clientes,
     // para que el monto (y el pago en línea) no dependa del navegador.
@@ -67,8 +78,12 @@ class Reserva extends Model
     {
         $valorPersona = ExperienciaPrecio::valorPorPersona($experienciaId, $personas);
         $subtotal = $valorPersona * $personas;
-        $descuentoPromocion = self::descuentoPromocion($experienciaId, $subtotal);
-        $descuentoCupon = $cupon ? Cupon::descuentoSobre($cupon, $subtotal - $descuentoPromocion) : 0;
+        // Los descuentos de valor fijo de promociones y cupones están en pesos: en dólares solo aplican los de porcentaje.
+        $enPesos = DB::table('experiencias')->where('id', $experienciaId)->value('moneda') !== Monedas::USD;
+        $descuentoPromocion = self::descuentoPromocion($experienciaId, $subtotal, $enPesos);
+        $descuentoCupon = $cupon && ($enPesos || $cupon->tipo === 'porcentaje')
+            ? Cupon::descuentoSobre($cupon, $subtotal - $descuentoPromocion)
+            : 0;
 
         return [
             'valor_persona' => $valorPersona,
@@ -79,7 +94,7 @@ class Reserva extends Model
         ];
     }
 
-    private static function descuentoPromocion($experienciaId, $subtotal)
+    private static function descuentoPromocion($experienciaId, $subtotal, $enPesos = true)
     {
         $hoy = Carbon::now()->toDateString();
 
@@ -89,6 +104,7 @@ class Reserva extends Model
             ->where('promociones.estado', 1)
             ->where('promociones.fecha_inicio', '<=', $hoy)
             ->where('promociones.fecha_fin', '>=', $hoy)
+            ->when(!$enPesos, fn ($q) => $q->where('promociones.tipo_descuento', 'porcentaje'))
             ->orderBy('promociones.valor_descuento', 'desc')
             ->select('promociones.tipo_descuento', 'promociones.valor_descuento')
             ->first();
@@ -177,6 +193,7 @@ class Reserva extends Model
                 'reservas.cupon_id',
                 'reservas.valor_descuento_cupon',
                 'reservas.valor_total',
+                'reservas.moneda',
                 'reservas.valor_pagado',
                 'reservas.valor_reembolsado',
                 'reservas.estado',
@@ -294,6 +311,7 @@ class Reserva extends Model
             'cupon_codigo' => $reserva->cupon_id ? DB::table('cupones')->where('id', $reserva->cupon_id)->value('codigo') : null,
             'valor_descuento_cupon' => $reserva->valor_descuento_cupon,
             'valor_total' => $reserva->valor_total,
+            'moneda' => $reserva->moneda,
             'valor_pagado' => $reserva->valor_pagado,
             'valor_reembolsado' => $reserva->valor_reembolsado,
             'pagos' => PagoService::pagosDeReserva($id),

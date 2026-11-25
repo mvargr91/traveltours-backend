@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Seguridad\AuditoriaTabla;
 use App\Models\Finanzas\CuentaPasarela;
+use App\Services\Monedas;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Experiencia extends Model
@@ -34,6 +35,7 @@ class Experiencia extends Model
         'incluye',
         'no_incluye',
         'precio_desde',
+        'moneda',
         'duracion',
         'duracion_dias',
         'capacidad_maxima',
@@ -89,6 +91,7 @@ class Experiencia extends Model
                 'experiencias.incluye',
                 'experiencias.no_incluye',
                 'experiencias.precio_desde',
+                'experiencias.moneda',
                 'experiencias.duracion',
                 'experiencias.duracion_dias',
                 'experiencias.capacidad_maxima',
@@ -195,6 +198,7 @@ class Experiencia extends Model
             'incluye' => $experiencia->incluye,
             'no_incluye' => $experiencia->no_incluye,
             'precio_desde' => $experiencia->precio_desde,
+            'moneda' => $experiencia->moneda,
             'duracion' => $experiencia->duracion,
             'duracion_dias' => $experiencia->duracion_dias,
             'capacidad_maxima' => $experiencia->capacidad_maxima,
@@ -237,6 +241,10 @@ class Experiencia extends Model
         // La columna no admite NULL: sin modalidad, la experiencia se reserva (sin pago en línea).
         if (array_key_exists('modalidad_pago', $dto) && !$dto['modalidad_pago']) {
             $dto['modalidad_pago'] = 'reserva';
+        }
+        // La columna no admite NULL: sin moneda, los precios van en pesos.
+        if (array_key_exists('moneda', $dto) && !$dto['moneda']) {
+            $dto['moneda'] = Monedas::COP;
         }
         // El abono solo existe con pago en línea.
         if (isset($dto['modalidad_pago']) && $dto['modalidad_pago'] !== 'pago_en_linea') {
@@ -290,6 +298,28 @@ class Experiencia extends Model
         return Experiencia::cargar($experiencia->id);
     }
 
+    public static function cambiarMoneda($id, $moneda)
+    {
+        $experiencia = Experiencia::find($id);
+        $experienciaOriginal = $experiencia->toJson();
+
+        $experiencia->moneda = $moneda;
+        if (!$experiencia->save()) {
+            throw new Exception('Ocurrió un error al intentar cambiar la moneda de la experiencia.');
+        }
+
+        AuditoriaTabla::crear([
+            'id_recurso' => $experiencia->id,
+            'nombre_recurso' => Experiencia::class,
+            'descripcion_recurso' => $experiencia->nombre,
+            'accion' => AccionAuditoriaEnum::MODIFICAR,
+            'recurso_original' => $experienciaOriginal,
+            'recurso_resultante' => $experiencia->toJson(),
+        ]);
+
+        return Experiencia::cargar($experiencia->id);
+    }
+
     public static function eliminar($id)
     {
         $experiencia = Experiencia::find($id);
@@ -328,6 +358,7 @@ class Experiencia extends Model
                 JOIN promocion_experiencia pe ON pe.promocion_id = p.id
                 WHERE pe.experiencia_id = experiencias.id AND p.estado = 1
                 AND p.fecha_inicio <= '{$hoy}' AND p.fecha_fin >= '{$hoy}'
+                AND (experiencias.moneda = 'COP' OR p.tipo_descuento = 'porcentaje')
                 ORDER BY p.valor_descuento DESC LIMIT 1) AS promocion_id"),
         ];
     }
@@ -346,6 +377,7 @@ class Experiencia extends Model
                 'experiencias.nombre',
                 'experiencias.slug',
                 'experiencias.precio_desde',
+                'experiencias.moneda',
                 CuentaPasarela::sqlModalidadEfectiva(),
                 'experiencias.porcentaje_abono',
                 'experiencias.duracion',
@@ -380,11 +412,13 @@ class Experiencia extends Model
                     ->where('categorias.slug', $dto['categoria']);
             });
         }
+        // Los filtros y el orden por precio comparan en pesos (las experiencias en dólares se convierten con la TRM).
+        $precioEnPesos = Monedas::sqlPrecioDesdeEnPesos();
         if (isset($dto['precio_min'])) {
-            $query->where('experiencias.precio_desde', '>=', $dto['precio_min']);
+            $query->whereRaw("{$precioEnPesos} >= ?", [(float) $dto['precio_min']]);
         }
         if (isset($dto['precio_max'])) {
-            $query->where('experiencias.precio_desde', '<=', $dto['precio_max']);
+            $query->whereRaw("{$precioEnPesos} <= ?", [(float) $dto['precio_max']]);
         }
         if (isset($dto['destacada'])) {
             $query->where('experiencias.destacada', 1);
@@ -440,10 +474,10 @@ class Experiencia extends Model
 
         switch ($dto['orden'] ?? 'relevancia') {
             case 'precio_asc':
-                $query->orderBy('experiencias.precio_desde', 'asc');
+                $query->orderByRaw("{$precioEnPesos} asc");
                 break;
             case 'precio_desc':
-                $query->orderBy('experiencias.precio_desde', 'desc');
+                $query->orderByRaw("{$precioEnPesos} desc");
                 break;
             case 'calificacion':
                 $query->orderBy('calificacion_promedio', 'desc');
@@ -489,6 +523,7 @@ class Experiencia extends Model
                 'experiencias.incluye',
                 'experiencias.no_incluye',
                 'experiencias.precio_desde',
+                'experiencias.moneda',
                 'experiencias.duracion',
                 'experiencias.duracion_dias',
                 'experiencias.capacidad_maxima',

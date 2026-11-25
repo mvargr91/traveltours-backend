@@ -124,15 +124,17 @@ class CuentaPasarela extends Model
     public static function sqlModalidadEfectiva(string $alias = 'modalidad_pago'): \Illuminate\Contracts\Database\Query\Expression
     {
         return DB::raw(
-            "CASE WHEN experiencias.modalidad_pago = 'pago_en_linea' AND EXISTS (SELECT 1 FROM cuentas_pasarela cp " .
+            // Las pasarelas cobran solo en pesos: una experiencia en dólares siempre se reserva.
+            "CASE WHEN experiencias.modalidad_pago = 'pago_en_linea' AND experiencias.moneda = 'COP' AND EXISTS (SELECT 1 FROM cuentas_pasarela cp " .
             "WHERE cp.proveedor_id = experiencias.proveedor_id AND cp.estado = 'activa') THEN 'pago_en_linea' ELSE 'reserva' END as {$alias}"
         );
     }
 
     public static function modalidadEfectiva($experienciaId): string
     {
-        $experiencia = DB::table('experiencias')->where('id', $experienciaId)->select('modalidad_pago', 'proveedor_id')->first();
-        return $experiencia && $experiencia->modalidad_pago === 'pago_en_linea' && self::activaDe($experiencia->proveedor_id)
+        $experiencia = DB::table('experiencias')->where('id', $experienciaId)->select('modalidad_pago', 'moneda', 'proveedor_id')->first();
+        return $experiencia && $experiencia->modalidad_pago === 'pago_en_linea' && $experiencia->moneda === 'COP'
+            && self::activaDe($experiencia->proveedor_id)
             ? 'pago_en_linea'
             : 'reserva';
     }

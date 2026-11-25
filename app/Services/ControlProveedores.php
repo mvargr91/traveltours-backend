@@ -116,7 +116,7 @@ class ControlProveedores
                 SUM(r.estado = 'rechazada') as rechazadas,
                 SUM(r.estado = 'finalizada') as finalizadas,
                 SUM(r.estado = 'no_asistio') as no_asistio,
-                SUM(CASE WHEN r.estado IN ('finalizada', 'no_asistio') THEN r.valor_total - r.valor_reembolsado ELSE 0 END) as ventas")
+                SUM(CASE WHEN r.estado IN ('finalizada', 'no_asistio') THEN (r.valor_total - r.valor_reembolsado) * " . Monedas::sqlFactorPesos('r.moneda') . " ELSE 0 END) as ventas")
             ->get()->keyBy('proveedor_id');
 
         // Cancelada el mismo día del tour o después: la señal más clara de una venta que no se quiere reportar.

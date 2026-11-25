@@ -296,9 +296,17 @@ class CobroProveedores
                 $base = max(0, round($base, 2));
             }
         }
+        // Las liquidaciones son en pesos: lo vendido en dólares se convierte con la TRM del día en que se generó la
+        // comisión. Se conserva en los recálculos para que un cambio de TRM no genere ajustes por sí solo.
+        $trm = null;
+        if ($reserva->moneda === Monedas::USD) {
+            $trm = (float) (DB::table('comisiones')->where('reserva_id', $reserva->id)->whereNotNull('trm')->orderBy('id')->value('trm')
+                ?: Monedas::trm());
+            $base = round($base * $trm, 2);
+        }
         $esperado = round($base * $porcentaje / 100);
 
-        DB::transaction(function () use ($reserva, $periodo, $base, $porcentaje, $esperado) {
+        DB::transaction(function () use ($reserva, $periodo, $base, $porcentaje, $esperado, $trm) {
             $filas = DB::table('comisiones')
                 ->leftJoin('liquidaciones', 'liquidaciones.id', '=', 'comisiones.liquidacion_id')
                 ->where('comisiones.reserva_id', $reserva->id)
@@ -321,6 +329,8 @@ class CobroProveedores
                     'periodo' => $periodo,
                     'tipo' => $ajuste ? 'ajuste' : 'comision',
                     'base' => round($base - (float) $cerradas->sum('base'), 2),
+                    'moneda_reserva' => $reserva->moneda,
+                    'trm' => $trm,
                     'porcentaje' => $porcentaje ?: (float) ($cerradas->first()->porcentaje ?? 0),
                     'valor' => $diferencia,
                     'descripcion' => $ajuste
@@ -567,7 +577,8 @@ class CobroProveedores
             ->orderBy('reservas.fecha')
             ->get([
                 'comisiones.id', 'comisiones.codigo_reserva', 'comisiones.periodo', 'comisiones.tipo', 'comisiones.base',
-                'comisiones.porcentaje', 'comisiones.valor', 'comisiones.descripcion', 'reservas.fecha', 'reservas.estado as reserva_estado',
+                'comisiones.porcentaje', 'comisiones.valor', 'comisiones.descripcion', 'comisiones.moneda_reserva', 'comisiones.trm',
+                'reservas.valor_total as reserva_valor_total', 'reservas.fecha', 'reservas.estado as reserva_estado',
                 'experiencias.nombre as experiencia_nombre',
             ]);
         $datos['pagos'] = DB::table('pagos_liquidacion')
