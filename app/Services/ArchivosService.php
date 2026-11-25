@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
  * Cada archivo se guarda en una carpeta que dice a qué registro pertenece:
  *   destinos/{id}-{slug}/imagen/
  *   categorias/{id}-{slug}/imagen/
- *   experiencias/{id}-{slug}/fotos/   · videos/   · resenas/{resena_id}/
+ *   experiencias/{id}-{slug}/fotos/   · videos/   · documentos/ (PDF del itinerario…)   · resenas/{resena_id}/
  *   proveedores/{id}-{slug}/documentos/{tipo_documento}/   (disco privado)
  * y el nombre lleva fecha, el nombre original normalizado y un sufijo aleatorio:
  *   20260925-101530-atardecer-en-guatape-k3x9p.jpg
@@ -34,6 +34,7 @@ class ArchivosService
     public const REGLA_IMAGEN = 'file|mimes:jpg,jpeg,png,webp|max:5120';           // 5 MB
     public const REGLA_VIDEO = 'file|mimes:mp4,webm|max:51200';                    // 50 MB
     public const REGLA_DOCUMENTO = 'file|mimes:pdf,jpg,jpeg,png|max:10240';        // 10 MB
+    public const REGLA_PDF = 'file|mimes:pdf|max:10240';                           // 10 MB
 
     /** Archivos guardados en esta petición: [disco, ruta] (se borran si se revierte). */
     private static array $nuevos = [];

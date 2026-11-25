@@ -89,17 +89,17 @@
                             @endforeach
                             <tr>
                                 <td style="padding:12px 0 0; font-weight:bold; font-size:16px;">Total</td>
-                                <td align="right" style="padding:12px 0 0; font-weight:bold; font-size:16px;">$ {{ number_format((float) $reserva->valor_total, 0, ',', '.') }}</td>
+                                <td align="right" style="padding:12px 0 0; font-weight:bold; font-size:16px;">{{ \App\Services\Monedas::formato($reserva->valor_total, $reserva->moneda ?? 'COP') }}</td>
                             </tr>
                             {{-- Abono: lo pagado y el saldo que falta --}}
                             @if ((float) ($reserva->valor_pagado ?? 0) > 0)
                                 <tr>
                                     <td style="padding:6px 0 0; color:#5F6B76;">Pagado</td>
-                                    <td align="right" style="padding:6px 0 0;">$ {{ number_format((float) $reserva->valor_pagado, 0, ',', '.') }}</td>
+                                    <td align="right" style="padding:6px 0 0;">{{ \App\Services\Monedas::formato($reserva->valor_pagado, $reserva->moneda ?? 'COP') }}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding:6px 0 0; color:#5F6B76;">Saldo pendiente</td>
-                                    <td align="right" style="padding:6px 0 0;">$ {{ number_format(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), 0, ',', '.') }}</td>
+                                    <td align="right" style="padding:6px 0 0;">{{ \App\Services\Monedas::formato(max(0, (float) $reserva->valor_total - (float) $reserva->valor_pagado), $reserva->moneda ?? 'COP') }}</td>
                                 </tr>
                             @endif
                         </table>

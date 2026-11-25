@@ -303,6 +303,7 @@ Route::group(['middleware' => ['auth:api']], function (){
         Route::get('/{id}', [Experiencias\ExperienciaController::class, 'show'])->name('experiencias.show')->middleware('permission:ListarExperiencia|ListarReserva|ListarPromocion|ListarResena');
         Route::put('/{id}', [Experiencias\ExperienciaController::class, 'update'])->name('experiencias.update')->middleware('permission:ModificarExperiencia');
         Route::put('/{id}/estado', [Experiencias\ExperienciaController::class, 'cambiarEstado'])->name('experiencias.cambiarEstado')->middleware('permission:ModificarExperiencia');
+        Route::put('/{id}/moneda', [Experiencias\ExperienciaController::class, 'cambiarMoneda'])->name('experiencias.cambiarMoneda')->middleware('permission:ModificarExperiencia');
         Route::delete('/{id}', [Experiencias\ExperienciaController::class, 'destroy'])->name('experiencias.delete')->middleware('permission:EliminarExperiencia');
     });
 

@@ -48,13 +48,17 @@ class ExperienciaMultimediaController extends Controller
             $datos = $request->all();
             $validator = Validator::make($datos, [
                 'experiencia_id' => 'integer|required|exists:experiencias,id',
-                'tipo' => 'string|required|in:foto,video',
+                'tipo' => 'string|required|in:' . implode(',', ExperienciaMultimedia::TIPOS),
                 'ruta_archivo' => 'string|required_without:archivo|nullable|max:255',
-                'archivo' => (($datos['tipo'] ?? '') === 'video' ? ArchivosService::REGLA_VIDEO : ArchivosService::REGLA_IMAGEN) . '|nullable',
-                'titulo' => 'string|nullable|max:150',
+                'archivo' => ExperienciaMultimedia::reglaArchivo($datos['tipo'] ?? '') . '|nullable',
+                // En un documento es el texto del botón del portal (ej. "Itinerario").
+                'titulo' => 'string|nullable|max:150|required_if:tipo,documento',
                 'texto_alternativo' => 'string|nullable|max:255',
                 'orden' => 'integer|nullable',
                 'estado' => 'boolean|nullable',
+            ], [
+                'titulo.required_if' => 'Escribe el texto del botón del documento (ej. "Itinerario").',
+                'archivo.mimes' => 'El archivo no tiene un formato permitido para este tipo de multimedia.',
             ]);
 
             if ($validator->fails()) {
@@ -76,7 +80,7 @@ class ExperienciaMultimediaController extends Controller
             $media = ExperienciaMultimedia::modificarOCrear($datos);
             $experiencia = DB::table('experiencias')->where('id', $media->experiencia_id)->first(['id', 'slug']);
             if (ArchivosService::adjuntar($request, 'experiencia_multimedia', $media->id, 'ruta_archivo',
-                ArchivosService::carpeta('experiencias', $experiencia->id, $experiencia->slug, $media->tipo === 'video' ? 'videos' : 'fotos'), $anterior)) {
+                ArchivosService::carpeta('experiencias', $experiencia->id, $experiencia->slug, ExperienciaMultimedia::subcarpeta($media->tipo)), $anterior)) {
                 $media = ExperienciaMultimedia::cargar($media->id);
             }
             DB::commit();
@@ -125,13 +129,17 @@ class ExperienciaMultimediaController extends Controller
             $datos['id'] = $id;
             $validator = Validator::make($datos, [
                 'id' => 'integer|required|exists:experiencia_multimedia,id',
-                'tipo' => 'string|required|in:foto,video',
+                'tipo' => 'string|required|in:' . implode(',', ExperienciaMultimedia::TIPOS),
                 'ruta_archivo' => 'string|nullable|max:255',
-                'archivo' => (($datos['tipo'] ?? '') === 'video' ? ArchivosService::REGLA_VIDEO : ArchivosService::REGLA_IMAGEN) . '|nullable',
-                'titulo' => 'string|nullable|max:150',
+                'archivo' => ExperienciaMultimedia::reglaArchivo($datos['tipo'] ?? '') . '|nullable',
+                // En un documento es el texto del botón del portal (ej. "Itinerario").
+                'titulo' => 'string|nullable|max:150|required_if:tipo,documento',
                 'texto_alternativo' => 'string|nullable|max:255',
                 'orden' => 'integer|nullable',
                 'estado' => 'boolean|nullable',
+            ], [
+                'titulo.required_if' => 'Escribe el texto del botón del documento (ej. "Itinerario").',
+                'archivo.mimes' => 'El archivo no tiene un formato permitido para este tipo de multimedia.',
             ]);
 
             if ($validator->fails()) {
@@ -153,7 +161,7 @@ class ExperienciaMultimediaController extends Controller
             $media = ExperienciaMultimedia::modificarOCrear($datos);
             $experiencia = DB::table('experiencias')->where('id', $media->experiencia_id)->first(['id', 'slug']);
             if (ArchivosService::adjuntar($request, 'experiencia_multimedia', $media->id, 'ruta_archivo',
-                ArchivosService::carpeta('experiencias', $experiencia->id, $experiencia->slug, $media->tipo === 'video' ? 'videos' : 'fotos'), $anterior)) {
+                ArchivosService::carpeta('experiencias', $experiencia->id, $experiencia->slug, ExperienciaMultimedia::subcarpeta($media->tipo)), $anterior)) {
                 $media = ExperienciaMultimedia::cargar($media->id);
             }
             DB::commit();

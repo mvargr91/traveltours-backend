@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use App\Models\Reservas\Reserva;
 use App\Services\PagoService;
+use App\Services\Monedas;
 
 /**
  * Inicio > Reportes: estadísticas de reservas y transacciones en un rango de fechas.
@@ -57,8 +58,10 @@ class ReporteController extends Controller
                 ->when($datos['experiencia_id'] ?? null, fn ($q, $v) => $q->where('reservas.experiencia_id', $v))
                 ->when($datos['destino_id'] ?? null, fn ($q, $v) => $q->where('experiencias.destino_id', $v));
             $confirmadas = fn () => (clone $base)->whereIn('reservas.estado', Reserva::ESTADOS_CON_CUPO);
-            $metricas = 'COUNT(*) as reservas, SUM(reservas.cantidad_personas) as personas, SUM(reservas.valor_total) as vendido, '
-                . 'SUM(reservas.valor_pagado) as pagado, SUM(reservas.valor_reembolsado) as reembolsado';
+            // Valores en pesos: las reservas en dólares se convierten con la TRM (Monedas).
+            $aPesos = Monedas::sqlFactorPesos('reservas.moneda');
+            $metricas = "COUNT(*) as reservas, SUM(reservas.cantidad_personas) as personas, SUM(reservas.valor_total * {$aPesos}) as vendido, "
+                . "SUM(reservas.valor_pagado * {$aPesos}) as pagado, SUM(reservas.valor_reembolsado * {$aPesos}) as reembolsado";
 
             $totales = (clone $base)->selectRaw('COUNT(*) as reservas')->first();
             $vendido = $confirmadas()->selectRaw($metricas)->first();
@@ -85,7 +88,7 @@ class ReporteController extends Controller
                 'filtros' => ['desde' => $desde, 'hasta' => $hasta, 'fecha_base' => $datos['fecha_base'] ?? 'creacion'],
                 'resumen' => $resumen,
                 'por_estado' => (clone $base)->groupBy('reservas.estado')
-                    ->selectRaw('reservas.estado, COUNT(*) as reservas, SUM(reservas.valor_total) as valor')
+                    ->selectRaw("reservas.estado, COUNT(*) as reservas, SUM(reservas.valor_total * {$aPesos}) as valor")
                     ->orderByDesc('reservas')->get(),
                 'por_mes' => $agrupar(["DATE_FORMAT({$columnaFecha}, '%Y-%m')"], ['mes'], 'mes')->reorder()->orderBy('mes')->get(),
                 'por_experiencia' => $agrupar(['experiencias.id', 'experiencias.nombre'], ['id', 'nombre'])->limit(20)->get(),
@@ -106,7 +109,7 @@ class ReporteController extends Controller
             ->where('pagos.estado', 'aprobado')
             ->where('pagos.concepto', PagoService::REEMBOLSO)
             ->whereRaw('COALESCE(pagos.fecha_pago, DATE(pagos.updated_at)) BETWEEN ? AND ?', [$desde, $hasta])
-            ->sum('pagos.monto_centavos') / 100, 2);
+            ->sum(DB::raw('pagos.monto_centavos * ' . Monedas::sqlFactorPesos('pagos.moneda'))) / 100, 2);
     }
 
     // Pagos, reembolsos y anulaciones del rango (en línea y manuales); los intentos sin aprobar no se listan.
@@ -139,6 +142,7 @@ class ReporteController extends Controller
                 'pagos.referencia',
                 'pagos.registrado_por',
                 DB::raw('ROUND(pagos.monto_centavos / 100, 2) as valor'),
+                'pagos.moneda',
             ]);
     }
 }

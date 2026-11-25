@@ -218,6 +218,7 @@ class Promocion extends Model
                     'experiencias.nombre',
                     'experiencias.slug',
                     'experiencias.precio_desde',
+                    'experiencias.moneda',
                     'destinos.nombre as destino_nombre',
                     DB::raw("(SELECT em.ruta_archivo FROM experiencia_multimedia em
                         WHERE em.experiencia_id = experiencias.id AND em.tipo = 'foto' AND em.estado = 1

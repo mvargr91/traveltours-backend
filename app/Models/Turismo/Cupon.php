@@ -312,6 +312,10 @@ class Cupon extends Model
         if (!$aplica) {
             return [null, 'El cupón no aplica para esta experiencia.'];
         }
+        if ($cupon->tipo !== 'porcentaje'
+            && DB::table('experiencias')->where('id', $experienciaId)->value('moneda') === \App\Services\Monedas::USD) {
+            return [null, 'Este cupón es de valor fijo en pesos y no aplica a experiencias en dólares.'];
+        }
 
         if ($cupon->cantidad !== null && self::usos($cupon->id) >= (int) $cupon->cantidad) {
             return [null, 'El cupón ya se agotó.'];

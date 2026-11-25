@@ -30,6 +30,7 @@ class Favorito extends Model
                 'experiencias.nombre as experiencia_nombre',
                 'experiencias.slug as experiencia_slug',
                 'experiencias.precio_desde',
+                'experiencias.moneda',
                 'favoritos.created_at as fecha_creacion',
             )
             ->orderBy('favoritos.created_at', 'desc')

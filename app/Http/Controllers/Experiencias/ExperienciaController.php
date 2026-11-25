@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\Finanzas\CuentaPasarela;
 use App\Services\ArchivosService;
+use App\Services\Monedas;
 use App\Http\Controllers\Concerns\AlcancePorRol;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Experiencias\Experiencia;
@@ -17,6 +18,8 @@ use App\Models\Experiencias\ExperienciaPrecio;
 class ExperienciaController extends Controller
 {
     use AlcancePorRol;
+
+    private const MENSAJE_USD_SIN_PAGO_EN_LINEA = 'Las experiencias en dólares no admiten pago en línea (las pasarelas cobran solo en pesos). Usa la modalidad "Reserva" o publica los precios en pesos.';
 
     public function index(Request $request)
     {
@@ -62,6 +65,7 @@ class ExperienciaController extends Controller
                 'idioma' => 'string|nullable|max:50',
                 'tipo' => 'string|nullable|in:' . implode(',', Experiencia::TIPOS),
                 'precio_desde' => 'numeric|nullable',
+                'moneda' => 'string|nullable|in:' . implode(',', Monedas::MONEDAS),
                 'capacidad_maxima' => 'integer|nullable',
                 'duracion_dias' => 'integer|nullable|between:1,60',
                 'modalidad_pago' => 'string|nullable|in:reserva,pago_en_linea',
@@ -127,6 +131,11 @@ class ExperienciaController extends Controller
         if (($datos['modalidad_pago'] ?? null) !== 'pago_en_linea') {
             return null;
         }
+        // Las pasarelas cobran solo en pesos: una experiencia en dólares se ofrece como reserva.
+        $moneda = $datos['moneda'] ?? (isset($datos['id']) ? DB::table('experiencias')->where('id', $datos['id'])->value('moneda') : null);
+        if ($moneda === Monedas::USD) {
+            return self::MENSAJE_USD_SIN_PAGO_EN_LINEA;
+        }
         // Si ya la tenía no se bloquea la edición: mientras no haya pasarela, el portal la ofrece como reserva.
         if (isset($datos['id']) && DB::table('experiencias')->where('id', $datos['id'])->value('modalidad_pago') === 'pago_en_linea') {
             return null;
@@ -177,6 +186,7 @@ class ExperienciaController extends Controller
                 'idioma' => 'string|nullable|max:50',
                 'tipo' => 'string|nullable|in:' . implode(',', Experiencia::TIPOS),
                 'precio_desde' => 'numeric|nullable',
+                'moneda' => 'string|nullable|in:' . implode(',', Monedas::MONEDAS),
                 'capacidad_maxima' => 'integer|nullable',
                 'duracion_dias' => 'integer|nullable|between:1,60',
                 'modalidad_pago' => 'string|nullable|in:reserva,pago_en_linea',
@@ -278,6 +288,44 @@ class ExperienciaController extends Controller
         } catch (Exception $e) {
             DB::rollback();
             ArchivosService::revertir();
+            return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /** Moneda de todos los precios de la experiencia (selector de la pestaña Precios). */
+    public function cambiarMoneda(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $datos = $request->all();
+            $datos['id'] = $id;
+            $validator = Validator::make($datos, [
+                'id' => 'integer|required|exists:experiencias,id',
+                'moneda' => 'string|required|in:' . implode(',', Monedas::MONEDAS),
+            ]);
+
+            if ($validator->fails()) {
+                return response(
+                    get_response_body(format_messages_validator($validator)),
+                    Response::HTTP_BAD_REQUEST
+                );
+            }
+
+            if (!$this->experienciaEnAlcance($id)) {
+                return $this->respuestaSinAcceso();
+            }
+            if ($datos['moneda'] === Monedas::USD && Experiencia::where('id', $id)->value('modalidad_pago') === 'pago_en_linea') {
+                return response(get_response_body([self::MENSAJE_USD_SIN_PAGO_EN_LINEA]), Response::HTTP_CONFLICT);
+            }
+
+            $experiencia = Experiencia::cambiarMoneda($id, $datos['moneda']);
+            DB::commit();
+            return response(
+                get_response_body(['La moneda de la experiencia ha sido actualizada.', 1], $experiencia),
+                Response::HTTP_OK
+            );
+        } catch (Exception $e) {
+            DB::rollback();
             return response(get_response_body([$e->getMessage()]), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }

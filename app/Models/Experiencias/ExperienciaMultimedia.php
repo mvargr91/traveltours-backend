@@ -6,6 +6,7 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use App\Services\ArchivosService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class ExperienciaMultimedia extends Model
@@ -13,6 +14,28 @@ class ExperienciaMultimedia extends Model
     use HasFactory;
 
     protected $table = 'experiencia_multimedia';
+
+    // foto y video forman la galería; documento es un PDF (itinerario, políticas…) que el portal muestra como un
+    // botón con el título como texto. Un video puede ser un enlace externo (YouTube); un documento siempre se sube.
+    public const TIPOS = ['foto', 'video', 'documento'];
+
+    public static function reglaArchivo(string $tipo): string
+    {
+        return match ($tipo) {
+            'video' => ArchivosService::REGLA_VIDEO,
+            'documento' => ArchivosService::REGLA_PDF,
+            default => ArchivosService::REGLA_IMAGEN,
+        };
+    }
+
+    public static function subcarpeta(string $tipo): string
+    {
+        return match ($tipo) {
+            'video' => 'videos',
+            'documento' => 'documentos',
+            default => 'fotos',
+        };
+    }
 
     protected $fillable = [
         'experiencia_id',

@@ -124,6 +124,7 @@ class PagoController extends Controller
                     'reservas.hora_inicio',
                     'reservas.cantidad_personas',
                     'reservas.valor_total',
+                    'reservas.moneda',
                     'reservas.valor_pagado',
                     'experiencias.nombre as experiencia_nombre',
                     'experiencias.slug as experiencia_slug',
